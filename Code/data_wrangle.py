@@ -1,4 +1,3 @@
-from asyncore import write
 import rasterio as rio
 from pysolar import solar
 import pytz
