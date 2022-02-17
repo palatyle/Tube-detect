@@ -1,48 +1,50 @@
 # connect to the API
 from sentinelsat import SentinelAPI, read_geojson, geojson_to_wkt
-from datetime import date 
 import os
 
+    
 
-'''
-def daterange(start_date, end_date):
-    for n in range(int ((end_date - start_date))):
-        yield start_date + timedelta(n)
+
+def Sentinel_download(filename, directory):
+    
+    
+    
+    api = SentinelAPI('***REMOVED***', '***REMOVED***', 'https://apihub.copernicus.eu/apihub')
+    
+    # download single scene by known product id
+    #api.download(<product_id>)
+    
+    # search by polygon, time, and SciHub query keywords
+    
+    #change directory usign os package
+    
+    os.chdir(directory)
+    
+    footprint = geojson_to_wkt(read_geojson(filename))
+    #loop through date range look around for date range
+    
+    
+    
+    years = ["2019", "2020", "2021"]
+    for x in years:
+        start_date = x + "05" + "01"
+        end_date = x + "07" + "31"
+        products = api.query(footprint,
+                             date=(start_date, end_date),
+                             platformname='Sentinel-2',
+                             filename = "*MSIL2A*",
+                             cloudcoverpercentage=(0, 10))
         
-start_date = date(2021, 5, 1)
-end_date = date(2021, 5, 30)
-for single_date in daterange(start_date, end_date):
-    print(single_date.strftime("%Y-%m-%d")) 
-    '''
+        # download all results from the search
+    
+        api.download_all(products)
+    return None 
+
+direct = "C:\\Users\\***REMOVED***\\Documents\\ArcGIS\\Projects\\Tubez\\HHA"
+fn = "C:/Users/***REMOVED***/Documents/ArcGIS/Projects/Tubez/Hell.geojson.json"
 
 
-
-api = SentinelAPI('***REMOVED***', '***REMOVED***', 'https://apihub.copernicus.eu/apihub')
-
-# download single scene by known product id
-#api.download(<product_id>)
-
-# search by polygon, time, and SciHub query keywords
-footprint = geojson_to_wkt(read_geojson('C:/Users/***REMOVED***/Documents/ArcGIS/Projects/Tubez/Hell.geojson.json')) #file pathway to geojson files
-#loop through date range look around for date range
-products = api.query(footprint,
-                     date=('20210501', '20210530'),
-                     platformname='Sentinel-2',
-                     filename = "*MSIL2A*",
-                     cloudcoverpercentage=(0, 10))
-
-# download all results from the search
-#change directory usign os package
-
-os.chdir('C:\\Users\\***REMOVED***\\Documents\\ArcGIS\\Projects\\Tubez\\HHA')
-
-
-api.download_all(products)
-
-
-
-
-#This is a test!
+Sentinel_download(fn,  direct)
 
 
 
@@ -70,4 +72,4 @@ api.download_all(products)
 #api.get_product_odata(<product_id>)
 
 # Get the product's full metadata available on the server
-#api.get_product_odata(<product_id>, full=True) 
+# api.get_product_odata(<product_id>, full=True) 
