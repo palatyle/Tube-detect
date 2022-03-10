@@ -2,35 +2,25 @@ import rasterio as rio
 from pysolar import solar
 import pytz
 from datetime import datetime
-import matplotlib.pyplot as plt
 import os
 import numpy as np
+import argparse
 from osgeo import gdal
 
-# Input directories
-# s_dir = 'C:\Students\Paladino\Tube-detect\data'
-s_dir = '/Users/tylerpaladino/Documents/ISU/Thesis/Lava_tube_detection/Code/data'
-d_dir = s_dir
-ras = 'day_ortho_16bit.tiff'
-DEM = 'day_DEM.tiff'
+parser = argparse.ArgumentParser()
+parser.add_argument("--NDVI",help="Calculate and output NDVI", action="store_true")
+parser.add_argument("--NDWI",help="Calculate and output NDWI", action="store_true")
+parser.add_argument("--MSAVI2",help="Calculate and output MSAVI2", action="store_true")
+parser.add_argument("--slope",help="Calculate and output slope", action="store_true")
+parser.add_argument("--aspect",help="Calculate and output aspect", action="store_true")
+parser.add_argument("--hillshade",help="Calculate and output hillshade", action="store_true")
+parser.add_argument("--ortho_dir",help="Full path to multiband ortho raster")
+parser.add_argument("--DEM_dir",help="Full path to DEM raster")
+parser.add_argument("--out_dir",help="Full path to output directory", default = '/Users/tylerpaladino/Documents/ISU/Thesis/Lava_tube_detection/Code/data')
+parser.add_argument("--lat",help="Latitude in decimal degrees for hillshade calc", default = 43.169254)
+parser.add_argument("--lon",help="Longitude in decimal degrees for hillshade calc", default = -114.34362)
 
-# Define general lat lon coords of tube area
-tube_lat = 43.169254
-tube_lon = -114.34362
-
-# Define time zone and datetime of flight
-tzone = 'US/Mountain'
-year = 2021
-month = 10
-day = 19
-hour = 15
-minute = 0
-second = 0 
-microsecond = 0
-
-# Create datetime object
-flight_dt = datetime(year,month,day,hour,minute,second,microsecond)
-
+args = parser.parse_args()
 
 def get_dt_obj(dt,tzone = 'US/Mountain'):
     '''
@@ -104,6 +94,11 @@ def band_math(index, **kwargs):
         out = np.zeros(f_green.shape, dtype=rio.float32)
         out = (f_green.astype(float)-f_NIR.astype(float))/(f_green+f_NIR)
         print("Done!")
+    elif index == 'MSAVI2' or index == 'msavi2':
+        print("Calculating MSAVI2...")
+        out = np.zeros(f_red.shape, dtype=rio.float32)
+        out = (((2*f_NIR.astype(float))+1) - np.sqrt((((2*f_NIR.astype(float))+1)**2) - (8*(f_NIR.astype(float) - f_red.astype(float)))))/2
+        print("Done!")
     return out
 
 
@@ -173,6 +168,7 @@ def calc_slope(fn_DEM, src_dir, dest_dir):
     src_dir: Source directory 
     dest_dir: Destination directory 
     '''
+    ###### TODO: switch these os.path.join lines with each other. Should be where file needs to go + name then input file (which means we can drop the second os.path.join)
     print('Calculating slope...')
     opts = gdal.DEMProcessingOptions(slopeFormat="degree")
     gdal.DEMProcessing(os.path.join(src_dir,'DEM_slope.tif'),os.path.join(dest_dir,fn_DEM),"slope", options=opts)
@@ -210,30 +206,75 @@ def calc_hillshade(fn_DEM, src_dir, dest_dir, azi, alt):
     gdal.DEMProcessing(os.path.join(src_dir,'DEM_hs.tif'),os.path.join(dest_dir,fn_DEM),"hillshade", options=opts)
     print("Done!")
 
-# Get timezone aware datetime object
-flight_dt_tz_aware = get_dt_obj(flight_dt)
 
-# Get solar azimuth and altitude
-s_alt,s_azi = get_solar_azi_alt(flight_dt_tz_aware,tube_lat, tube_lon)
 
-# Create rasterio object
-src = rio.open(os.path.join(s_dir,ras))
+# Input directories
+# s_dir = 'C:\Students\Paladino\Tube-detect\data'
+ras = args.ortho_dir
+DEM = args.DEM_dir
+d_dir = args.out_dir
 
-# Read in bands of interest
-red = read_bands(src, 'red')
-NIR = read_bands(src, 'NIR')
+# ras = 'day_ortho_16bit.tiff'
+# DEM = 'day_DEM.tiff'
 
-# Use band math to calculate NDVI 
-NDVI = band_math('NDVI', b3=red, b5=NIR)
+if args.NDVI or args.NDWI or args.MSAVI2:
+    # Create rasterio object
+    src = rio.open(ras)
 
-# Write NDVI data to disk
-write_band(src,NDVI,d_dir,'NDVI.tif')
+    # If any of these above indices are in the arg list, load in NIR (every index depends on NIR)
+    NIR = read_bands(src, 'NIR')
+    if args.NDVI or args.MSAVI2:
+        red = read_bands(src, 'red')
+        if args.NDVI:
+            # Use band math to calculate NDVI 
+            NDVI = band_math('NDVI', b3=red, b5=NIR)
+            # Write NDVI data to disk
+            write_band(src,NDVI,d_dir,'NDVI.tif')
+        if args.MSAVI2:
+            # Use band math to calculate MSAVI2
+            MSAVI2 = band_math('MSAVI2', b3=red, b5=NIR)
+            # Write MSAVI2 data to disk
+            write_band(src,MSAVI2,d_dir,'MSAVI2.tif')
+    elif args.NDWI:
+        green = read_bands(src, 'green')
+        # Use band math to calculate MSAVI2
+        NDWI = band_math('NDWI', b2=green, b5=NIR)
+        # Write MSAVI2 data to disk
+        write_band(src,NDWI,d_dir,'NDWI.tif')
+if args.DEM_DIR == None:
+    print("Error: Input DEM to calcualte slope, aspect, or hillshade")
+    quit()
+elif args.slope:
+    # Calcualte and write slope data from DEM
+    calc_slope(DEM, s_dir, d_dir)
 
-# Calcualte and write slope data from DEM
-calc_slope(DEM, s_dir, d_dir)
+elif args.aspect:
+    # Calcualte and write aspect data from DEM
+    calc_aspect(DEM, s_dir, d_dir)
 
-# Calcualte and write aspect data from DEM
-calc_aspect(DEM, s_dir, d_dir)
+elif args.hillshade:
+    # Define general lat lon coords of tube area
+    tube_lat = args.lat
+    tube_lon = args.lon
 
-# Calcualte and write hillshade from DEM. Solar azimuth and altitude calculated from position of tube and time of flight. 
-calc_hillshade(DEM, s_dir, d_dir, s_azi, s_alt)
+    # Define time zone and datetime of flight
+    tzone = 'US/Mountain'
+    year = 2021
+    month = 10
+    day = 19
+    hour = 15
+    minute = 0
+    second = 0 
+    microsecond = 0
+
+    # Create datetime object
+    flight_dt = datetime(year,month,day,hour,minute,second,microsecond)
+
+    # Get timezone aware datetime object
+    flight_dt_tz_aware = get_dt_obj(flight_dt, tzone)
+
+    # Get solar azimuth and altitude
+    s_alt,s_azi = get_solar_azi_alt(flight_dt_tz_aware,tube_lat,tube_lon)
+
+    # Calcualte and write hillshade from DEM. Solar azimuth and altitude calculated from position of tube and time of flight. 
+    calc_hillshade(DEM, s_dir, d_dir, s_azi, s_alt)
