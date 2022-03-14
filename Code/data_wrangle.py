@@ -158,7 +158,7 @@ def write_band(raster, band, dest_dir, out_fn):
             dst.write(band.astype(float),1)
     return None 
 
-def calc_slope(fn_DEM, src_dir, dest_dir):
+def calc_slope(fn_DEM, dest_dir):
     '''
     Returns None. Calculates slope and writes to disk
 
@@ -171,10 +171,10 @@ def calc_slope(fn_DEM, src_dir, dest_dir):
     ###### TODO: switch these os.path.join lines with each other. Should be where file needs to go + name then input file (which means we can drop the second os.path.join)
     print('Calculating slope...')
     opts = gdal.DEMProcessingOptions(slopeFormat="degree")
-    gdal.DEMProcessing(os.path.join(src_dir,'DEM_slope.tif'),os.path.join(dest_dir,fn_DEM),"slope", options=opts)
+    gdal.DEMProcessing(os.path.join(dest_dir,'DEM_slope.tif'),fn_DEM,"slope",options=opts)
     print("Done!")
 
-def calc_aspect(fn_DEM, src_dir, dest_dir):
+def calc_aspect(fn_DEM, dest_dir):
     '''
     Returns None. Calculates aspect and writes to disk
 
@@ -186,10 +186,11 @@ def calc_aspect(fn_DEM, src_dir, dest_dir):
     '''
     print('Calculating aspect...')
     opts = gdal.DEMProcessingOptions()
-    gdal.DEMProcessing(os.path.join(src_dir,'DEM_aspect.tif'),os.path.join(dest_dir,fn_DEM),"aspect", options=opts)
+    gdal.DEMProcessing(os.path.join(dest_dir,'DEM_aspect.tif'),fn_DEM,"aspect",options=opts)
+
     print("Done!")
 
-def calc_hillshade(fn_DEM, src_dir, dest_dir, azi, alt):
+def calc_hillshade(fn_DEM, dest_dir, azi, alt):
     '''
     Returns None. Calculates a hillshade and writes to disk
 
@@ -203,7 +204,8 @@ def calc_hillshade(fn_DEM, src_dir, dest_dir, azi, alt):
     '''
     print('Calculating hillshade...')
     opts = gdal.DEMProcessingOptions(azimuth=azi, altitude=alt)
-    gdal.DEMProcessing(os.path.join(src_dir,'DEM_hs.tif'),os.path.join(dest_dir,fn_DEM),"hillshade", options=opts)
+    gdal.DEMProcessing(os.path.join(dest_dir,'DEM_hs.tif'),fn_DEM,"hillshade",options=opts)
+
     print("Done!")
 
 
@@ -246,11 +248,11 @@ if args.DEM_DIR == None:
     quit()
 elif args.slope:
     # Calcualte and write slope data from DEM
-    calc_slope(DEM, s_dir, d_dir)
+    calc_slope(DEM, d_dir)
 
 elif args.aspect:
     # Calcualte and write aspect data from DEM
-    calc_aspect(DEM, s_dir, d_dir)
+    calc_aspect(DEM, d_dir)
 
 elif args.hillshade:
     # Define general lat lon coords of tube area
@@ -277,4 +279,4 @@ elif args.hillshade:
     s_alt,s_azi = get_solar_azi_alt(flight_dt_tz_aware,tube_lat,tube_lon)
 
     # Calcualte and write hillshade from DEM. Solar azimuth and altitude calculated from position of tube and time of flight. 
-    calc_hillshade(DEM, s_dir, d_dir, s_azi, s_alt)
+    calc_hillshade(DEM, d_dir, s_azi, s_alt)
