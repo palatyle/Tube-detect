@@ -19,6 +19,8 @@ parser.add_argument("--DEM_dir",help="Full path to DEM raster")
 parser.add_argument("--out_dir",help="Full path to output directory", default = '/Users/tylerpaladino/Documents/ISU/Thesis/Lava_tube_detection/Code/data')
 parser.add_argument("--lat",help="Latitude in decimal degrees for hillshade calc", default = 43.169254)
 parser.add_argument("--lon",help="Longitude in decimal degrees for hillshade calc", default = -114.34362)
+parser.add_argument("--date",help="Date-time in following format = 'yyyy-mm-dd hh:MM:ss' ex: 2021-10-19 15:00:00. Timezone is Mountain time by default", default = '2021-10-19 15:00:00')
+
 
 args = parser.parse_args()
 
@@ -270,8 +272,8 @@ elif args.hillshade:
     microsecond = 0
 
     # Create datetime object
-    flight_dt = datetime(year,month,day,hour,minute,second,microsecond)
-
+    flight_dt = datetime.fromisoformat(args.date)
+    
     # Get timezone aware datetime object
     flight_dt_tz_aware = get_dt_obj(flight_dt, tzone)
 
