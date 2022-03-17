@@ -1,3 +1,4 @@
+from ssl import ALERT_DESCRIPTION_BAD_CERTIFICATE_STATUS_RESPONSE
 import rasterio as rio
 from pysolar import solar
 import pytz
@@ -6,6 +7,7 @@ import os
 import numpy as np
 import argparse
 from osgeo import gdal
+import lidario as lio
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--NDVI",help="Calculate and output NDVI", action="store_true")
@@ -14,6 +16,7 @@ parser.add_argument("--MSAVI2",help="Calculate and output MSAVI2", action="store
 parser.add_argument("--slope",help="Calculate and output slope", action="store_true")
 parser.add_argument("--aspect",help="Calculate and output aspect", action="store_true")
 parser.add_argument("--hillshade",help="Calculate and output hillshade", action="store_true")
+parser.add_argument("--CSV",help="Convert rasters to .csv files", action="store_true")
 parser.add_argument("--ortho_dir",help="Full path to multiband ortho raster")
 parser.add_argument("--DEM_dir",help="Full path to DEM raster")
 parser.add_argument("--out_dir",help="Full path to output directory", default = '/Users/tylerpaladino/Documents/ISU/Thesis/Lava_tube_detection/Code/data')
@@ -141,7 +144,7 @@ def read_bands(raster, band_name):
         print('Done!')
     return out
 
-def write_band(raster, band, dest_dir, out_fn):
+def write_band(raster, band, dest_dir, out_fn, arg):
     '''
     Returns None. Writes raster band to disk
 
@@ -158,9 +161,16 @@ def write_band(raster, band, dest_dir, out_fn):
         profile.update(dtype=rio.float32, count=1)
         with rio.open(os.path.join(dest_dir, out_fn), 'w', **profile) as dst:
             dst.write(band.astype(float),1)
+
+    if arg.CSV:
+        print('Convert to csv...')
+        # Create Translator object
+        translator = lio.Translator("geotiff", "csv")
+        # Read in tiff and output a .csv file. 
+        translator.translate(os.path.join(dest_dir, out_fn), out_file=os.path.join(dest_dir, out_fn) + '.csv')
     return None 
 
-def calc_slope(fn_DEM, dest_dir):
+def calc_slope(fn_DEM, dest_dir, arg):
     '''
     Returns None. Calculates slope and writes to disk
 
@@ -170,13 +180,20 @@ def calc_slope(fn_DEM, dest_dir):
     src_dir: Source directory 
     dest_dir: Destination directory 
     '''
-    ###### TODO: switch these os.path.join lines with each other. Should be where file needs to go + name then input file (which means we can drop the second os.path.join)
+
     print('Calculating slope...')
     opts = gdal.DEMProcessingOptions(slopeFormat="degree")
-    gdal.DEMProcessing(os.path.join(dest_dir,'DEM_slope.tif'),fn_DEM,"slope",options=opts)
+    fn = 'DEM_slope.tif'
+    gdal.DEMProcessing(os.path.join(dest_dir, fn),fn_DEM,"slope",options=opts)
+    if arg.CSV:
+        print('Convert to csv...')
+        # Create Translator object
+        translator = lio.Translator("geotiff", "csv")
+        # Read in tiff and output a .csv file. 
+        translator.translate(os.path.join(dest_dir,fn), out_file=os.path.join(dest_dir, fn) + '.csv')
     print("Done!")
 
-def calc_aspect(fn_DEM, dest_dir):
+def calc_aspect(fn_DEM, dest_dir, arg):
     '''
     Returns None. Calculates aspect and writes to disk
 
@@ -188,11 +205,17 @@ def calc_aspect(fn_DEM, dest_dir):
     '''
     print('Calculating aspect...')
     opts = gdal.DEMProcessingOptions()
-    gdal.DEMProcessing(os.path.join(dest_dir,'DEM_aspect.tif'),fn_DEM,"aspect",options=opts)
-
+    fn = 'DEM_aspect.tif'
+    gdal.DEMProcessing(os.path.join(dest_dir,fn),fn_DEM,"aspect",options=opts)
+    if arg.CSV:
+        print('Convert to csv...')
+        # Create Translator object
+        translator = lio.Translator("geotiff", "csv")
+        # Read in tiff and output a .csv file. 
+        translator.translate(os.path.join(dest_dir,fn), out_file=os.path.join(dest_dir, fn) + '.csv')
     print("Done!")
 
-def calc_hillshade(fn_DEM, dest_dir, azi, alt):
+def calc_hillshade(fn_DEM, dest_dir, azi, alt, arg):
     '''
     Returns None. Calculates a hillshade and writes to disk
 
@@ -206,8 +229,14 @@ def calc_hillshade(fn_DEM, dest_dir, azi, alt):
     '''
     print('Calculating hillshade...')
     opts = gdal.DEMProcessingOptions(azimuth=azi, altitude=alt)
-    gdal.DEMProcessing(os.path.join(dest_dir,'DEM_hs.tif'),fn_DEM,"hillshade",options=opts)
-
+    fn = 'DEM_hs.tif'
+    gdal.DEMProcessing(os.path.join(dest_dir,fn),fn_DEM,"hillshade",options=opts)
+    if arg.CSV:
+        print('Convert to csv...')
+        # Create Translator object
+        translator = lio.Translator("geotiff", "csv")
+        # Read in tiff and output a .csv file. 
+        translator.translate(os.path.join(dest_dir,fn), out_file=os.path.join(dest_dir, fn) + '.csv')
     print("Done!")
 
 
@@ -233,47 +262,46 @@ if args.NDVI or args.NDWI or args.MSAVI2:
             # Use band math to calculate NDVI 
             NDVI = band_math('NDVI', b3=red, b5=NIR)
             # Write NDVI data to disk
-            write_band(src,NDVI,d_dir,'NDVI.tif')
+            write_band(src,NDVI,d_dir,'NDVI.tif',args)
         if args.MSAVI2:
             # Use band math to calculate MSAVI2
             MSAVI2 = band_math('MSAVI2', b3=red, b5=NIR)
             # Write MSAVI2 data to disk
-            write_band(src,MSAVI2,d_dir,'MSAVI2.tif')
+            write_band(src,MSAVI2,d_dir,'MSAVI2.tif',args)
     elif args.NDWI:
         green = read_bands(src, 'green')
         # Use band math to calculate MSAVI2
         NDWI = band_math('NDWI', b2=green, b5=NIR)
         # Write MSAVI2 data to disk
-        write_band(src,NDWI,d_dir,'NDWI.tif')
-if args.DEM_DIR == None:
-    print("Error: Input DEM to calcualte slope, aspect, or hillshade")
-    quit()
-elif args.slope:
-    # Calcualte and write slope data from DEM
-    calc_slope(DEM, d_dir)
+        write_band(src,NDWI,d_dir,'NDWI.tif',args)
+if args.slope:
+    if args.DEM_dir == None:
+        print("Error: Input DEM to calculate slope, aspect, or hillshade")
+        quit()
+    # Calculate and write slope data from DEM
+    calc_slope(DEM, d_dir, args)
 
-elif args.aspect:
-    # Calcualte and write aspect data from DEM
-    calc_aspect(DEM, d_dir)
+if args.aspect:
+    if args.DEM_dir == None:
+        print("Error: Input DEM to calculate slope, aspect, or hillshade")
+        quit()
+    # Calculate and write aspect data from DEM
+    calc_aspect(DEM, d_dir, args)
 
-elif args.hillshade:
+if args.hillshade:
+    if args.DEM_dir == None:
+        print("Error: Input DEM to calculate slope, aspect, or hillshade")
+        quit()
     # Define general lat lon coords of tube area
     tube_lat = args.lat
     tube_lon = args.lon
 
     # Define time zone and datetime of flight
     tzone = 'US/Mountain'
-    year = 2021
-    month = 10
-    day = 19
-    hour = 15
-    minute = 0
-    second = 0 
-    microsecond = 0
 
     # Create datetime object
     flight_dt = datetime.fromisoformat(args.date)
-    
+
     # Get timezone aware datetime object
     flight_dt_tz_aware = get_dt_obj(flight_dt, tzone)
 
@@ -281,4 +309,6 @@ elif args.hillshade:
     s_alt,s_azi = get_solar_azi_alt(flight_dt_tz_aware,tube_lat,tube_lon)
 
     # Calcualte and write hillshade from DEM. Solar azimuth and altitude calculated from position of tube and time of flight. 
-    calc_hillshade(DEM, d_dir, s_azi, s_alt)
+    calc_hillshade(DEM, d_dir, s_azi, s_alt, args)
+
+
