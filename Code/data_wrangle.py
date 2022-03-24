@@ -8,6 +8,9 @@ import numpy as np
 import argparse
 from osgeo import gdal
 import lidario as lio
+import time
+
+start_time = time.time()
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--NDVI",help="Calculate and output NDVI", action="store_true")
@@ -167,7 +170,7 @@ def write_band(raster, band, dest_dir, out_fn, arg):
         # Create Translator object
         translator = lio.Translator("geotiff", "csv")
         # Read in tiff and output a .csv file. 
-        translator.translate(os.path.join(dest_dir, out_fn), out_file=os.path.join(dest_dir, out_fn) + '.csv')
+        translator.translate(os.path.join(dest_dir, out_fn), out_file=os.path.join(dest_dir, out_fn))
     return None 
 
 def calc_slope(fn_DEM, dest_dir, arg):
@@ -190,7 +193,7 @@ def calc_slope(fn_DEM, dest_dir, arg):
         # Create Translator object
         translator = lio.Translator("geotiff", "csv")
         # Read in tiff and output a .csv file. 
-        translator.translate(os.path.join(dest_dir,fn), out_file=os.path.join(dest_dir, fn) + '.csv')
+        translator.translate(os.path.join(dest_dir,fn), out_file=os.path.join(dest_dir, fn))
     print("Done!")
 
 def calc_aspect(fn_DEM, dest_dir, arg):
@@ -212,7 +215,7 @@ def calc_aspect(fn_DEM, dest_dir, arg):
         # Create Translator object
         translator = lio.Translator("geotiff", "csv")
         # Read in tiff and output a .csv file. 
-        translator.translate(os.path.join(dest_dir,fn), out_file=os.path.join(dest_dir, fn) + '.csv')
+        translator.translate(os.path.join(dest_dir,fn), out_file=os.path.join(dest_dir, fn))
     print("Done!")
 
 def calc_hillshade(fn_DEM, dest_dir, azi, alt, arg):
@@ -236,7 +239,7 @@ def calc_hillshade(fn_DEM, dest_dir, azi, alt, arg):
         # Create Translator object
         translator = lio.Translator("geotiff", "csv")
         # Read in tiff and output a .csv file. 
-        translator.translate(os.path.join(dest_dir,fn), out_file=os.path.join(dest_dir, fn) + '.csv')
+        translator.translate(os.path.join(dest_dir,fn), out_file=os.path.join(dest_dir, fn))
     print("Done!")
 
 
@@ -311,4 +314,4 @@ if args.hillshade:
     # Calcualte and write hillshade from DEM. Solar azimuth and altitude calculated from position of tube and time of flight. 
     calc_hillshade(DEM, d_dir, s_azi, s_alt, args)
 
-
+print("--- %s seconds ---" % (time.time()-start_time))
