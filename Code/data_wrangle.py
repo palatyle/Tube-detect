@@ -1,4 +1,3 @@
-import rasterio as rio
 from pysolar import solar
 import pytz
 from datetime import datetime
@@ -8,6 +7,7 @@ import argparse
 from osgeo import gdal
 from osgeo.gdalnumeric import CopyDatasetInfo, BandWriteArray
 import lidario as lio
+import pandas as pd
 import time
 
 start_time = time.time()
@@ -234,7 +234,31 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
         translator = lio.Translator("geotiff", "csv")
         # Read in tiff and output a .csv file. 
         translator.translate(os.path.join(dest_dir, out_fn), out_file=os.path.join(dest_dir, out_fn))
+
+        # band_df = numpy2CSV(band,raster_GDAL)
+        # band_df.to_csv(os.path.join(dest_dir, out_fn),index=False)
     return None 
+
+def numpy2CSV(arr,raster):
+    flat = arr.flatten()
+
+    gt = raster.GetGeoTransform()
+    res = gt[1]
+    xmin = gt[0]
+    ymax = gt[3]
+    xsize = raster.RasterXSize
+    ysize = raster.RasterYSize
+    xstart = xmin + res/2
+    ystart = ymax - res/2
+
+    x = np.arange(xstart, xstart+xsize*res, res)
+    y = np.arange(ystart, ystart-ysize*res, -res)
+    x = np.tile(x, ysize)
+    y = np.repeat(y, xsize)
+
+    df = pd.DataFrame({"x":x, "y":y, "value":flat})
+
+    return df
 
 def calc_slope(fn_DEM, dest_dir, arg):
     '''
