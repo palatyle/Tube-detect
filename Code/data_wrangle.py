@@ -1,4 +1,3 @@
-from ssl import ALERT_DESCRIPTION_BAD_CERTIFICATE_STATUS_RESPONSE
 import rasterio as rio
 from pysolar import solar
 import pytz
@@ -7,6 +6,7 @@ import os
 import numpy as np
 import argparse
 from osgeo import gdal
+from osgeo.gdalnumeric import CopyDatasetInfo, BandWriteArray
 import lidario as lio
 import time
 
@@ -65,52 +65,77 @@ def get_solar_azi_alt(dt,lat,lon):
     alt = solar.get_altitude(lat,lon,dt)
     return alt, azi
 
-def band_math(index, **kwargs):
+def scale_factor(raster):
+    return raster * 10000
+
+def band_math(raster, index):
     '''
     Returns output of a band math index, such as NDVI or NDWI
     
+    Blue = raster[0]
+    Green = raster[1]
+    Red = raster[2]
+    Red Edge = raster[3]
+    NIR = raster[4]
+    TIR = raster[5]
+
     Parameter
     ---------
     index: band math index (either NDVI or NDWI for now)
-    **kawrgs: key value pairs of an arbitrary number of bands in numpy format. Must be of the format b#=...
 
     Returns
     -------
     out: output of a band math index
-    '''
-    for idx,val in enumerate(kwargs):
-        if val == 'b1':
-            f_blue = list(kwargs.values())[idx]
-        elif val == 'b2':
-            f_green = list(kwargs.values())[idx]
-        elif val == 'b3':
-            f_red = list(kwargs.values())[idx]
-        elif val == 'b4':
-            f_red_edge = list(kwargs.values())[idx]
-        elif val == 'b5':
-            f_NIR = list(kwargs.values())[idx]
-        elif val == 'b6':
-            f_TIR = list(kwargs.values())[idx]
 
+    
+    '''
     if index == 'NDVI' or index ==  'ndvi':
         print("Calculating NDVI...")
-        out = np.zeros(f_red.shape, dtype=rio.float32)
-        out = (f_NIR.astype(float)-f_red.astype(float))/(f_NIR+f_red)
+        out = np.zeros(raster[0,:,:].shape, dtype=np.float16)
+        out = scale_factor((raster[4,:,:].astype(float)-raster[2,:,:].astype(float))/(raster[4,:,:]+raster[2,:,:]))
         print("Done!")
     elif index == 'NDWI' or index == 'ndwi':
         print("Calculating NDWI...")
-        out = np.zeros(f_green.shape, dtype=rio.float32)
-        out = (f_green.astype(float)-f_NIR.astype(float))/(f_green+f_NIR)
+        out = np.zeros(raster[0,:,:].shape, dtype=np.float16)
+        out = (raster[1,:,:].astype(float)-raster[4,:,:].astype(float))/(raster[1,:,:]+raster[4,:,:])
         print("Done!")
     elif index == 'MSAVI2' or index == 'msavi2':
         print("Calculating MSAVI2...")
-        out = np.zeros(f_red.shape, dtype=rio.float32)
-        out = (((2*f_NIR.astype(float))+1) - np.sqrt((((2*f_NIR.astype(float))+1)**2) - (8*(f_NIR.astype(float) - f_red.astype(float)))))/2
+        out = np.zeros(raster[0,:,:].shape, dtype=np.float16)
+        out = (((2*raster[4,:,:].astype(float))+1) - np.sqrt((((2*raster[4,:,:].astype(float))+1)**2) - (8*(raster[4,:,:].astype(float) - raster[2,:,:].astype(float)))))/2
         print("Done!")
-    return out
+    return out.astype(np.int16)
 
 
- 
+def GDAL_read_tiff(fn):
+    '''
+    Returns GDAL raster object
+
+    Parameters
+    ----------
+    fn: Full directory and filename of .tiff 
+
+    Returns
+    -------
+    raster: GDAL raster object
+    '''
+    raster = gdal.Open(fn)
+    return raster
+
+def GDAL2NP(raster):
+    '''
+    Returns N dimensional numpy array of GDAL raster object
+
+    Parameters
+    ----------
+    raster: GDAL raster object
+
+    Returns
+    -------
+    raster_NP: raster numpy array
+    '''
+    raster_NP = raster.ReadAsArray()
+    return raster_NP
 
 def read_bands(raster, band_name):
     '''
@@ -181,7 +206,7 @@ def apply_no_data_val(ds, no_data):
     '''
     return np.ma.masked_equal(ds,no_data)
 
-def write_band(raster, band, dest_dir, out_fn, arg):
+def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
     '''
     Returns None. Writes raster band to disk
 
@@ -193,11 +218,15 @@ def write_band(raster, band, dest_dir, out_fn, arg):
     out_fn: Output filename
     '''
     print('Writing data...')
-    with rio.Env():
-        profile = raster.profile
-        profile.update(dtype=rio.float32, count=1)
-        with rio.open(os.path.join(dest_dir, out_fn), 'w', **profile) as dst:
-            dst.write(band.astype(float),1)
+
+    driver = gdal.GetDriverByName("GTiff")
+    dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Int16)
+    CopyDatasetInfo(raster_GDAL,dsOut)
+    bandOut=dsOut.GetRasterBand(1)
+    BandWriteArray(bandOut, band)
+
+    bandOut=None
+    dsOut=None
 
     if arg.CSV:
         print('Convert to csv...')
@@ -288,29 +317,41 @@ d_dir = args.out_dir
 # DEM = 'day_DEM.tiff'
 
 if args.NDVI or args.NDWI or args.MSAVI2:
-    # Create rasterio object
-    src = rio.open(ras)
+
+    # Read in raster dataset 
+    src_GDAL = GDAL_read_tiff(ras)
+
+    # Get no data value
+    nodata = get_no_data_val(src_GDAL)
+
+    # Convert GDAL raster dataset to a numpy array
+    src_NP = GDAL2NP(src_GDAL)
+
+    # Apply the no data value to the entire numpy arr
+    src = apply_no_data_val(src_NP, nodata)
+
+    # Free up some memory
+    src_NP = None 
 
     # If any of these above indices are in the arg list, load in NIR (every index depends on NIR)
-    NIR = read_bands(src, 'NIR')
-    if args.NDVI or args.MSAVI2:
-        red = read_bands(src, 'red')
-        if args.NDVI:
-            # Use band math to calculate NDVI 
-            NDVI = band_math('NDVI', b3=red, b5=NIR)
-            # Write NDVI data to disk
-            write_band(src,NDVI,d_dir,'NDVI.tif',args)
-        if args.MSAVI2:
-            # Use band math to calculate MSAVI2
-            MSAVI2 = band_math('MSAVI2', b3=red, b5=NIR)
-            # Write MSAVI2 data to disk
-            write_band(src,MSAVI2,d_dir,'MSAVI2.tif',args)
-    elif args.NDWI:
-        green = read_bands(src, 'green')
+    if args.NDVI:
+        # Use band math to calculate NDVI 
+        NDVI = band_math(src, 'NDVI')
+        # Write NDVI data to disk
+        write_band(src_GDAL,NDVI,d_dir,'NDVI.tif',args)
+        NDVI = None
+    elif args.MSAVI2:
         # Use band math to calculate MSAVI2
-        NDWI = band_math('NDWI', b2=green, b5=NIR)
+        MSAVI2 = band_math(src, 'MSAVI2')
         # Write MSAVI2 data to disk
-        write_band(src,NDWI,d_dir,'NDWI.tif',args)
+        write_band(src_GDAL,MSAVI2,d_dir,'MSAVI2.tif',args)
+        MSAVI2 = None
+    elif args.NDWI:
+        # Use band math to calculate MSAVI2
+        NDWI = band_math(src, 'NDWI')
+        # Write MSAVI2 data to disk
+        write_band(src_GDAL,NDWI,d_dir,'NDWI.tif',args)
+        NDWI = None
 if args.slope:
     if args.DEM_dir == None:
         print("Error: Input DEM to calculate slope, aspect, or hillshade")
