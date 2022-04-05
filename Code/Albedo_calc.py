@@ -3,7 +3,6 @@ import numpy as np
 from osgeo import gdal
 
 
-
 def GDAL_read_tiff(fn):
     '''
     Returns GDAL raster object
@@ -30,8 +29,8 @@ def get_no_data_val(ds):
     no data value in uint16 format
     '''
     # Read in 1st band to get access to nodata value
-    dummy_band = ds.GetRasterBand(1)
-    no_data = dummy_band.GetNoDataValue()
+    dummy_band = ds.GetRasterBand(1)                                                          
+    no_data = dummy_band.GetNoDataValue()                                                 
 
     # Return no data value as a unsigned 16 bit integer (to match input dataset)
     return np.uint16(no_data)
@@ -46,7 +45,7 @@ def GDAL2NP(raster):
     -------
     raster_NP: raster numpy array
     '''
-    raster_NP = raster.ReadAsArray()
+    raster_NP = raster.ReadAsArray() 
     return raster_NP
 
 def apply_no_data_val(ds, no_data):
@@ -85,7 +84,6 @@ def albedo_band_math(raster):
         B9: Water Vapor = raster[9]
         B11: SWIR1 = raster[10]
         B12: SWIR2 = raster[11]
-        
     Parameter
     ---------
     raster: input gdal raster
@@ -95,26 +93,36 @@ def albedo_band_math(raster):
     out: output of albedo band math
     
     '''
+    # TODO move outside of function toward end of code prolly
+
+    weight_B2 = 0.2266
+    weight_B3 = 0.1236
+    weight_B4 = 0.1573
+    weight_B8 = 0.3417
+    weight_B11 = 0.1170
+    weight_B12 = 0.0338
+
     print("Calculating NDVI...")
     out = np.zeros(raster[0,:,:].shape, dtype=np.float16)
     out = scale_factor((raster[4,:,:].astype(float)-raster[2,:,:].astype(float))/(raster[4,:,:]+raster[2,:,:]))
     print("Done!")
     return out.astype(np.int16)
 
+
     #format for albedo calc -- wrap in the scale_factor
 
+    #raster[1,:,:].astype(float)*(0.2266)+raster[2,:,:]*(0.1236) # +...
 
-    raster[1,:,:].astype(float)*(0.2266)+raster[2,:,:]*(0.1236) # +...
+HHA_files = "D:\\Downloaded_data\\hells_half_acre\\HHA\\Processed_Products\\Forreal_products\\S2A_MSIL2A_20190511T181921_N0212_R127_T12TUP_20190511T224452_super_resolved.tif"
 
-    # Read in raster dataset 
-    src_GDAL = GDAL_read_tiff(ras)
+# Read in raster dataset 
+src_GDAL = GDAL_read_tiff(HHA_files)
 
-    # Get no data value
-    nodata = get_no_data_val(src_GDAL)
+# Get no data value
+#nodata = get_no_data_val(src_GDAL)
 
-    # Convert GDAL raster dataset to a numpy array
-    src_NP = GDAL2NP(src_GDAL)
+# Convert GDAL raster dataset to a numpy array
+src_NP = GDAL2NP(src_GDAL)
 
-    # Apply the no data value to the entire numpy arr
-    src = apply_no_data_val(src_NP, nodata)
-
+# Apply the no data value to the entire numpy array
+#src = apply_no_data_val(src_NP, nodata)
