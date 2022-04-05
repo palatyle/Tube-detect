@@ -120,7 +120,7 @@ def GDAL_read_tiff(fn):
     -------
     raster: GDAL raster object
     '''
-    print("reading in tiff...")
+    print("reading in GDAL obj...")
     raster = gdal.Open(fn)
     print("Done!")
     return raster
@@ -137,7 +137,9 @@ def GDAL2NP(raster):
     -------
     raster_NP: raster numpy array
     '''
+    print("Convert to numpy array...")
     raster_NP = raster.ReadAsArray()
+    print("Done!")
     return raster_NP
 
 def read_bands(raster, band_name):
@@ -222,13 +224,14 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
     '''
     print('Writing data...')
 
+    band = band.filled(fill_value=10001)
     driver = gdal.GetDriverByName("GTiff")
     dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Int16, options=["COMPRESS=LZW"])
     CopyDatasetInfo(raster_GDAL,dsOut)
-    bandOut=dsOut.GetRasterBand(1)
-    BandWriteArray(bandOut, band)
+    dsOut.GetRasterBand(1).WriteArray(band)
+    dsOut.GetRasterBand(1).SetNoDataValue(10001)
+    dsOut.FlushCache()
 
-    bandOut=None
     dsOut=None
 
     if arg.CSV:
