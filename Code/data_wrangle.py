@@ -97,12 +97,13 @@ def band_math(raster, index):
     elif index == 'NDWI' or index == 'ndwi':
         print("Calculating NDWI...")
         out = np.zeros(raster[0,:,:].shape, dtype=np.float16)
-        out = (raster[1,:,:].astype(float)-raster[4,:,:].astype(float))/(raster[1,:,:]+raster[4,:,:])
+        out = scale_factor((raster[1,:,:].astype(float)-raster[4,:,:].astype(float))/(raster[1,:,:]+raster[4,:,:]))
         print("Done!")
     elif index == 'MSAVI2' or index == 'msavi2':
         print("Calculating MSAVI2...")
         out = np.zeros(raster[0,:,:].shape, dtype=np.float16)
-        out = (((2*raster[4,:,:].astype(float))+1) - np.sqrt((((2*raster[4,:,:].astype(float))+1)**2) - (8*(raster[4,:,:].astype(float) - raster[2,:,:].astype(float)))))/2
+        # out = scale_factor((((2*raster[4,:,:].astype(float))+1) - np.sqrt((((2*raster[4,:,:].astype(float))+1)**2) - (8*(raster[4,:,:].astype(float) - raster[2,:,:].astype(float)))))/2)
+        out = scale_factor((1/2)*(2*(raster[4,:,:].astype(float)+1)-np.sqrt((2*raster[4,:,:].astype(float)+1)**2-8*(raster[4,:,:].astype(float)-raster[2,:,:].astype(float)))))
         print("Done!")
     return out.astype(np.int16)
 
@@ -119,7 +120,9 @@ def GDAL_read_tiff(fn):
     -------
     raster: GDAL raster object
     '''
+    print("reading in tiff...")
     raster = gdal.Open(fn)
+    print("Done!")
     return raster
 
 def GDAL2NP(raster):
@@ -220,7 +223,7 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
     print('Writing data...')
 
     driver = gdal.GetDriverByName("GTiff")
-    dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Int16)
+    dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Int16, options=["COMPRESS=LZW"])
     CopyDatasetInfo(raster_GDAL,dsOut)
     bandOut=dsOut.GetRasterBand(1)
     BandWriteArray(bandOut, band)
@@ -364,13 +367,13 @@ if args.NDVI or args.NDWI or args.MSAVI2:
         # Write NDVI data to disk
         write_band(src_GDAL,NDVI,d_dir,'NDVI.tif',args)
         NDVI = None
-    elif args.MSAVI2:
+    if args.MSAVI2:
         # Use band math to calculate MSAVI2
         MSAVI2 = band_math(src, 'MSAVI2')
         # Write MSAVI2 data to disk
         write_band(src_GDAL,MSAVI2,d_dir,'MSAVI2.tif',args)
         MSAVI2 = None
-    elif args.NDWI:
+    if args.NDWI:
         # Use band math to calculate MSAVI2
         NDWI = band_math(src, 'NDWI')
         # Write MSAVI2 data to disk
