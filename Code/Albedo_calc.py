@@ -93,14 +93,6 @@ def albedo_band_math(raster):
     out: output of albedo band math
     
     '''
-    # TODO move outside of function toward end of code prolly
-
-    weight_B2 = 0.2266
-    weight_B3 = 0.1236
-    weight_B4 = 0.1573
-    weight_B8 = 0.3417
-    weight_B11 = 0.1170
-    weight_B12 = 0.0338
 
     print("Calculating NDVI...")
     out = np.zeros(raster[0,:,:].shape, dtype=np.float16)
@@ -108,15 +100,23 @@ def albedo_band_math(raster):
     print("Done!")
     return out.astype(np.int16)
 
+def albedo_calculator(raster):
+    #TODO add comments here after talking to tyler
+    band_weights = [0.2266, 0.1236, 0.1573, 0.3417, 0.1170, 0.0338]
 
-    #format for albedo calc -- wrap in the scale_factor
+    print("Calculating Albedo...")
+    albedo_value = scale_factor(raster[1,:,:].astype(float)*band_weights[0]+raster[2,:,:].astype(float)*band_weights[1]+raster[3,:,:].astype(float)*band_weights[2]+raster[7,:,:].astype(float)*band_weights[3]+raster[10,:,:].astype(float)*band_weights[4]+raster[11,:,:].astype(float)*band_weights[5])
+    print("Done!")
+    return albedo_value.astype(np.int16)
 
-    #raster[1,:,:].astype(float)*(0.2266)+raster[2,:,:]*(0.1236) # +...
 
-HHA_files = "D:\\Downloaded_data\\hells_half_acre\\HHA\\Processed_Products\\Forreal_products\\S2A_MSIL2A_20190511T181921_N0212_R127_T12TUP_20190511T224452_super_resolved.tif"
+
+
+HHA_file = "D:\\Downloaded_data\\hells_half_acre\\HHA\\Processed_Products\\Forreal_products\\S2A_MSIL2A_20190511T181921_N0212_R127_T12TUP_20190511T224452_super_resolved.tif"
+
 
 # Read in raster dataset 
-src_GDAL = GDAL_read_tiff(HHA_files)
+src_GDAL = GDAL_read_tiff(HHA_file)
 
 # Get no data value
 #nodata = get_no_data_val(src_GDAL)
