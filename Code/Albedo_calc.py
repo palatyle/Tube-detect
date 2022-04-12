@@ -1,6 +1,7 @@
 import os
 import numpy as np
 from osgeo import gdal
+from osgeo.gdalnumeric import CopyDatasetInfo, BandWriteArray
 
 
 def GDAL_read_tiff(fn):
@@ -106,11 +107,34 @@ def albedo_calculator(raster):
 
 
     print("Calculating Albedo...")
-    albedo_value = scale_factor(raster[1,:,:].astype(float)*band_weights[0]+raster[2,:,:].astype(float)*band_weights[1]+raster[3,:,:].astype(float)*band_weights[2]+raster[7,:,:].astype(float)*band_weights[3]+raster[10,:,:].astype(float)*band_weights[4]+raster[11,:,:].astype(float)*band_weights[5])
+    albedo_value = raster[1,:,:].astype(float)*band_weights[0]+raster[2,:,:].astype(float)*band_weights[1]+raster[3,:,:].astype(float)*band_weights[2]+raster[7,:,:].astype(float)*band_weights[3]+raster[10,:,:].astype(float)*band_weights[4]+raster[11,:,:].astype(float)*band_weights[5]
     print("Done!")
-    return albedo_value.astype(np.int16)
+    return albedo_value
+
+def write_band(raster_GDAL, band, dest_dir, out_fn):
+    '''
+    Returns None. Writes raster band to disk
+
+    Parameters
+    ----------
+    raster: rasterio object 
+    band: Band array to write
+    dest_dir: Destination directory 
+    out_fn: Output filename
+    '''
+
+    print('Writing tif...')
+    driver = gdal.GetDriverByName("GTiff")
+    dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Int16, options=["COMPRESS=LZW"])
+    CopyDatasetInfo(raster_GDAL,dsOut)
+    dsOut.GetRasterBand(1).WriteArray(band)
+    # dsOut.GetRasterBand(1).SetNoDataValue(10001)
+    dsOut.FlushCache()
+
+    dsOut=None
 
 
+    return None
 
 
 HHA_file = "D:\\Downloaded_data\\hells_half_acre\\HHA\\Processed_Products\\Forreal_products\\S2A_MSIL2A_20190511T181921_N0212_R127_T12TUP_20190511T224452_super_resolved.tif" 
@@ -127,5 +151,8 @@ src_NP = GDAL2NP(src_GDAL)
 # Apply the no data value to the entire numpy array
 #src = apply_no_data_val(src_NP, nodata)
 
-ALbedo_Temp = albedo_calculator(src_NP)
+Albedo_Temp = albedo_calculator(src_NP)
 print("Done")
+
+write_band(src_GDAL,Albedo_Temp, "D:\\Downloaded_data\\HHA_Export_Albedo", "Test1.tiff")
+
