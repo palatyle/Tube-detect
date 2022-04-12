@@ -104,6 +104,14 @@ def albedo_calculator(raster):
     #TODO add comments here after talking to tyler
     band_weights = [0.2266, 0.1236, 0.1573, 0.3417, 0.1170, 0.0338]
 
+    '''
+    needed_band_list = [raster[1,:,:].astype(float),raster[2,:,:].astype(float),raster[3,:,:].astype(float), raster[7,:,:].astype(float), raster[10,:,:].astype(float), raster[11,:,:].astype(float)]
+    for band in needed_band_list:
+        print (band)
+    '''
+
+
+
     print("Calculating Albedo...")
     albedo_value = scale_factor(raster[1,:,:].astype(float)*band_weights[0]+raster[2,:,:].astype(float)*band_weights[1]+raster[3,:,:].astype(float)*band_weights[2]+raster[7,:,:].astype(float)*band_weights[3]+raster[10,:,:].astype(float)*band_weights[4]+raster[11,:,:].astype(float)*band_weights[5])
     print("Done!")
@@ -112,7 +120,7 @@ def albedo_calculator(raster):
 
 
 
-HHA_file = "D:\\Downloaded_data\\hells_half_acre\\HHA\\Processed_Products\\Forreal_products\\S2A_MSIL2A_20190511T181921_N0212_R127_T12TUP_20190511T224452_super_resolved.tif"
+HHA_file = "D:\\Downloaded_data\\hells_half_acre\\HHA\\Processed_Products\\Forreal_products\\S2A_MSIL2A_20190511T181921_N0212_R127_T12TUP_20190511T224452_super_resolved.tif\\" #\\??
 
 
 # Read in raster dataset 
