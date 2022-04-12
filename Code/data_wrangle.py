@@ -193,8 +193,8 @@ def get_no_data_val(ds):
     dummy_band = ds.GetRasterBand(1)
     no_data = dummy_band.GetNoDataValue()
 
-    # Return no data value as a unsigned 16 bit integer (to match input dataset)
-    return np.uint16(no_data)
+    # Return no data value rounded to nearest integer value
+    return round(no_data)
 
 def apply_no_data_val(ds, no_data):
     '''
@@ -222,8 +222,12 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
     dest_dir: Destination directory 
     out_fn: Output filename
     '''
-    print('Writing data...')
 
+    if arg.CSV:
+        numpy2CSV(band,dest_dir,out_fn)
+    
+
+    print('Writing tif...')
     band = band.filled(fill_value=10001)
     driver = gdal.GetDriverByName("GTiff")
     dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Int16, options=["COMPRESS=LZW"])
@@ -234,37 +238,18 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
 
     dsOut=None
 
-    if arg.CSV:
-        print('Convert to csv...')
-        # Create Translator object
-        translator = lio.Translator("geotiff", "csv")
-        # Read in tiff and output a .csv file. 
-        translator.translate(os.path.join(dest_dir, out_fn), out_file=os.path.join(dest_dir, out_fn))
 
-        # band_df = numpy2CSV(band,raster_GDAL)
-        # band_df.to_csv(os.path.join(dest_dir, out_fn),index=False)
     return None 
 
-def numpy2CSV(arr,raster):
-    flat = arr.flatten()
+def numpy2CSV(arr, dir, fn):
 
-    gt = raster.GetGeoTransform()
-    res = gt[1]
-    xmin = gt[0]
-    ymax = gt[3]
-    xsize = raster.RasterXSize
-    ysize = raster.RasterYSize
-    xstart = xmin + res/2
-    ystart = ymax - res/2
+    arr_reshape = arr.reshape(arr.size)
+    arr_no_mask = arr_reshape.compressed()
+    print("writing csv...")
+    np.savetxt(os.path.join(dir, fn)+'.csv',arr_no_mask,fmt='%i',delimiter=',')
+    print("Done")
 
-    x = np.arange(xstart, xstart+xsize*res, res)
-    y = np.arange(ystart, ystart-ysize*res, -res)
-    x = np.tile(x, ysize)
-    y = np.repeat(y, xsize)
-
-    df = pd.DataFrame({"x":x, "y":y, "value":flat})
-
-    return df
+    return None
 
 def calc_slope(fn_DEM, dest_dir, arg):
     '''
@@ -282,11 +267,7 @@ def calc_slope(fn_DEM, dest_dir, arg):
     fn = 'DEM_slope.tif'
     gdal.DEMProcessing(os.path.join(dest_dir, fn),fn_DEM,"slope",options=opts)
     if arg.CSV:
-        print('Convert to csv...')
-        # Create Translator object
-        translator = lio.Translator("geotiff", "csv")
-        # Read in tiff and output a .csv file. 
-        translator.translate(os.path.join(dest_dir,fn), out_file=os.path.join(dest_dir, fn))
+        tif2csv(fn_DEM, fn, dest_dir)
     print("Done!")
 
 def calc_aspect(fn_DEM, dest_dir, arg):
@@ -304,11 +285,7 @@ def calc_aspect(fn_DEM, dest_dir, arg):
     fn = 'DEM_aspect.tif'
     gdal.DEMProcessing(os.path.join(dest_dir,fn),fn_DEM,"aspect",options=opts)
     if arg.CSV:
-        print('Convert to csv...')
-        # Create Translator object
-        translator = lio.Translator("geotiff", "csv")
-        # Read in tiff and output a .csv file. 
-        translator.translate(os.path.join(dest_dir,fn), out_file=os.path.join(dest_dir, fn))
+        tif2csv(fn_DEM, fn, dest_dir)
     print("Done!")
 
 def calc_hillshade(fn_DEM, dest_dir, azi, alt, arg):
@@ -328,13 +305,35 @@ def calc_hillshade(fn_DEM, dest_dir, azi, alt, arg):
     fn = 'DEM_hs.tif'
     gdal.DEMProcessing(os.path.join(dest_dir,fn),fn_DEM,"hillshade",options=opts)
     if arg.CSV:
-        print('Convert to csv...')
-        # Create Translator object
-        translator = lio.Translator("geotiff", "csv")
-        # Read in tiff and output a .csv file. 
-        translator.translate(os.path.join(dest_dir,fn), out_file=os.path.join(dest_dir, fn))
+        tif2csv(fn_DEM, fn, dest_dir)
     print("Done!")
 
+def tif2csv(fn,fn_out,dest):
+        np_ras, gdal_ras, nodat = read_in_raster(fn)
+        print('Convert to csv...')
+        numpy2CSV(np_ras,dest,fn_out)
+
+def read_in_raster(fn):
+    '''
+    
+    
+    '''    
+    # Read in raster dataset 
+    src_GDAL = GDAL_read_tiff(fn)
+
+    # Get no data value
+    nodata = get_no_data_val(src_GDAL)
+
+    # Convert GDAL raster dataset to a numpy array
+    src_NP = GDAL2NP(src_GDAL)
+
+    # Apply the no data value to the entire numpy arr
+    src = apply_no_data_val(src_NP, nodata)
+
+    # Free up some memory
+    src_NP = None
+
+    return src, src_GDAL, nodata
 
 
 # Input directories
@@ -348,39 +347,26 @@ d_dir = args.out_dir
 
 if args.NDVI or args.NDWI or args.MSAVI2:
 
-    # Read in raster dataset 
-    src_GDAL = GDAL_read_tiff(ras)
-
-    # Get no data value
-    nodata = get_no_data_val(src_GDAL)
-
-    # Convert GDAL raster dataset to a numpy array
-    src_NP = GDAL2NP(src_GDAL)
-
-    # Apply the no data value to the entire numpy arr
-    src = apply_no_data_val(src_NP, nodata)
-
-    # Free up some memory
-    src_NP = None 
+    raster,raster_GDAL,nodat = read_in_raster(ras)
 
     # If any of these above indices are in the arg list, load in NIR (every index depends on NIR)
     if args.NDVI:
         # Use band math to calculate NDVI 
-        NDVI = band_math(src, 'NDVI')
+        NDVI = band_math(raster, 'NDVI')
         # Write NDVI data to disk
-        write_band(src_GDAL,NDVI,d_dir,'NDVI.tif',args)
+        write_band(raster_GDAL,NDVI,d_dir,'NDVI.tif',args)
         NDVI = None
     if args.MSAVI2:
         # Use band math to calculate MSAVI2
-        MSAVI2 = band_math(src, 'MSAVI2')
+        MSAVI2 = band_math(raster, 'MSAVI2')
         # Write MSAVI2 data to disk
-        write_band(src_GDAL,MSAVI2,d_dir,'MSAVI2.tif',args)
+        write_band(raster_GDAL,MSAVI2,d_dir,'MSAVI2.tif',args)
         MSAVI2 = None
     if args.NDWI:
         # Use band math to calculate MSAVI2
-        NDWI = band_math(src, 'NDWI')
+        NDWI = band_math(raster, 'NDWI')
         # Write MSAVI2 data to disk
-        write_band(src_GDAL,NDWI,d_dir,'NDWI.tif',args)
+        write_band(raster_GDAL,NDWI,d_dir,'NDWI.tif',args)
         NDWI = None
 if args.slope:
     if args.DEM_dir == None:
