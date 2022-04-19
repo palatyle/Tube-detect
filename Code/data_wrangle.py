@@ -20,6 +20,7 @@ parser.add_argument("--thermal",help="Export thermal band", action="store_true")
 parser.add_argument("--slope",help="Calculate and output slope", action="store_true")
 parser.add_argument("--aspect",help="Calculate and output aspect", action="store_true")
 parser.add_argument("--hillshade",help="Calculate and output hillshade", action="store_true")
+parser.add_argument("--roughness",help="Calculate and output roughness", action="store_true")
 parser.add_argument("--CSV",help="Convert rasters to .csv files", action="store_true")
 parser.add_argument("--ortho_dir",help="Full path to multiband ortho raster")
 parser.add_argument("--DEM_dir",help="Full path to DEM raster")
@@ -282,6 +283,24 @@ def calc_slope(fn_DEM, dest_dir, arg):
         tif2csv(fn_DEM, fn, dest_dir)
     print("Done!")
 
+def calc_roughness(fn_DEM, dest_dir, arg):
+    '''
+    Returns None. Calculates roughness and writes to disk
+
+    Parameters
+    ----------
+    fn_DEM: DEM filename
+    src_dir: Source directory 
+    dest_dir: Destination directory 
+    '''
+
+    print('Calculating roughness...')
+    fn = 'DEM_roughness.tif'
+    gdal.DEMProcessing(os.path.join(dest_dir, fn),fn_DEM,"roughness")
+    if arg.CSV:
+        tif2csv(fn_DEM, fn, dest_dir)
+    print("Done!")
+
 def calc_aspect(fn_DEM, dest_dir, arg):
     '''
     Returns None. Calculates aspect and writes to disk
@@ -389,7 +408,12 @@ if args.slope:
         quit()
     # Calculate and write slope data from DEM
     calc_slope(DEM, d_dir, args)
-
+if args.roughness:
+    if args.DEM_dir == None:
+        print("Error: Input DEM to calculate slope, aspect, or hillshade")
+        quit()
+    # Calculate and write roughness data from DEM
+    calc_roughness(DEM, d_dir, args)
 if args.aspect:
     if args.DEM_dir == None:
         print("Error: Input DEM to calculate slope, aspect, or hillshade")
