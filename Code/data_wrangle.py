@@ -16,6 +16,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--NDVI",help="Calculate and output NDVI", action="store_true")
 parser.add_argument("--NDWI",help="Calculate and output NDWI", action="store_true")
 parser.add_argument("--MSAVI2",help="Calculate and output MSAVI2", action="store_true")
+parser.add_argument("--thermal",help="Export thermal band", action="store_true")
 parser.add_argument("--slope",help="Calculate and output slope", action="store_true")
 parser.add_argument("--aspect",help="Calculate and output aspect", action="store_true")
 parser.add_argument("--hillshade",help="Calculate and output hillshade", action="store_true")
@@ -226,15 +227,26 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
     if arg.CSV:
         numpy2CSV(band,dest_dir,out_fn)
     
-
-    print('Writing tif...')
-    band = band.filled(fill_value=10001)
-    driver = gdal.GetDriverByName("GTiff")
-    dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Int16, options=["COMPRESS=LZW"])
-    CopyDatasetInfo(raster_GDAL,dsOut)
-    dsOut.GetRasterBand(1).WriteArray(band)
-    dsOut.GetRasterBand(1).SetNoDataValue(10001)
-    dsOut.FlushCache()
+    if band.dtype == 'int16':
+        print('Writing tif...')
+        band = band.filled(fill_value=10001)
+        driver = gdal.GetDriverByName("GTiff")
+        
+        dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Int16, options=["COMPRESS=LZW"])
+        CopyDatasetInfo(raster_GDAL,dsOut)
+        dsOut.GetRasterBand(1).WriteArray(band)
+        dsOut.GetRasterBand(1).SetNoDataValue(10001)
+        dsOut.FlushCache()
+    elif band.dtype == 'uint16':
+        print('Writing tif...')
+        band = band.filled(fill_value=65535)
+        driver = gdal.GetDriverByName("GTiff")
+        
+        dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_UInt16, options=["COMPRESS=LZW"])
+        CopyDatasetInfo(raster_GDAL,dsOut)
+        dsOut.GetRasterBand(1).WriteArray(band)
+        dsOut.GetRasterBand(1).SetNoDataValue(65535)
+        dsOut.FlushCache()
 
     dsOut=None
 
@@ -345,7 +357,7 @@ d_dir = args.out_dir
 # ras = 'day_ortho_16bit.tiff'
 # DEM = 'day_DEM.tiff'
 
-if args.NDVI or args.NDWI or args.MSAVI2:
+if args.NDVI or args.NDWI or args.MSAVI2 or args.thermal:
 
     raster,raster_GDAL,nodat = read_in_raster(ras)
 
@@ -368,6 +380,9 @@ if args.NDVI or args.NDWI or args.MSAVI2:
         # Write MSAVI2 data to disk
         write_band(raster_GDAL,NDWI,d_dir,'NDWI.tif',args)
         NDWI = None
+    if args.thermal:
+        write_band(raster_GDAL,raster[-1,:,:],d_dir,'thermal.tif',args)
+
 if args.slope:
     if args.DEM_dir == None:
         print("Error: Input DEM to calculate slope, aspect, or hillshade")
