@@ -136,11 +136,15 @@ def write_band(raster_GDAL, band, dest_dir, out_fn):
 
     return None
 
+# dir
+#HHA_file = "D:\\Downloaded_data\\hells_half_acre\\HHA\\Processed_Products\\Forreal_products\\S2A_MSIL2A_20190511T181921_N0212_R127_T12TUP_20190511T224452_super_resolved.tif" 
+HHA_dir = "D:\\Downloaded_data\\hells_half_acre\\HHA\\Processed_Products\\Forreal_products"
+file_location = os.listdir(HHA_dir)
 
-HHA_file = "D:\\Downloaded_data\\hells_half_acre\\HHA\\Processed_Products\\Forreal_products\\S2A_MSIL2A_20190511T181921_N0212_R127_T12TUP_20190511T224452_super_resolved.tif" 
-
+for file in file_location:
+    print(file)
 # Read in raster dataset 
-src_GDAL = GDAL_read_tiff(HHA_file)
+src_GDAL = GDAL_read_tiff(file)
 
 # Get no data value
 #nodata = get_no_data_val(src_GDAL)
