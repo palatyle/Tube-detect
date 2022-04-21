@@ -3,7 +3,6 @@ import numpy as np
 from osgeo import gdal
 from osgeo.gdalnumeric import CopyDatasetInfo, BandWriteArray
 
-
 def GDAL_read_tiff(fn):
     '''
     Returns GDAL raster object
@@ -16,8 +15,6 @@ def GDAL_read_tiff(fn):
     '''
     raster = gdal.Open(fn)
     return raster
-
-
 
 def get_no_data_val(ds):
     '''
@@ -46,7 +43,9 @@ def GDAL2NP(raster):
     -------
     raster_NP: raster numpy array
     '''
-    raster_NP = raster.ReadAsArray() 
+    print("Convert to numpy array...")
+    raster_NP = raster.ReadAsArray()
+    print("Done!")
     return raster_NP
 
 def apply_no_data_val(ds, no_data):
@@ -64,8 +63,6 @@ def apply_no_data_val(ds, no_data):
 
 def scale_factor(raster):
     return raster * 10000
-
-
     
 def albedo_band_math(raster):
     '''
@@ -102,9 +99,16 @@ def albedo_band_math(raster):
     return out.astype(np.int16)
 
 def albedo_calculator(raster):
-    #TODO add comments here after talking to tyler
-    band_weights = [0.2266, 0.1236, 0.1573, 0.3417, 0.1170, 0.0338]
+    '''
+    Returns calculated albedo for all bands of raster
 
+     Parameters
+    ----------
+    band_weights: list of weights for needed bands for albedo calculation
+    raster: GDAL raster object
+    albedo_value: value of calculated albedo
+    '''
+    band_weights = [0.2266, 0.1236, 0.1573, 0.3417, 0.1170, 0.0338]
 
     print("Calculating Albedo...")
     albedo_value = raster[1,:,:].astype(float)*band_weights[0]+raster[2,:,:].astype(float)*band_weights[1]+raster[3,:,:].astype(float)*band_weights[2]+raster[7,:,:].astype(float)*band_weights[3]+raster[10,:,:].astype(float)*band_weights[4]+raster[11,:,:].astype(float)*band_weights[5]
@@ -136,27 +140,28 @@ def write_band(raster_GDAL, band, dest_dir, out_fn):
 
     return None
 
-# dir
 #HHA_file = "D:\\Downloaded_data\\hells_half_acre\\HHA\\Processed_Products\\Forreal_products\\S2A_MSIL2A_20190511T181921_N0212_R127_T12TUP_20190511T224452_super_resolved.tif" 
 HHA_dir = "D:\\Downloaded_data\\hells_half_acre\\HHA\\Processed_Products\\Forreal_products"
-file_location = os.listdir(HHA_dir)
+os.chdir(HHA_dir)
+file_list = os.listdir(HHA_dir)
 
-for file in file_location:
+for file in file_list:
     print(file)
-# Read in raster dataset 
-src_GDAL = GDAL_read_tiff(file)
+    # Read in raster dataset 
+    src_GDAL = GDAL_read_tiff(file)
 
-# Get no data value
-#nodata = get_no_data_val(src_GDAL)
+    # Get no data value
+    #nodata = get_no_data_val(src_GDAL)
 
-# Convert GDAL raster dataset to a numpy array
-src_NP = GDAL2NP(src_GDAL)
+    # Convert GDAL raster dataset to a numpy array
+    src_NP = GDAL2NP(src_GDAL)
 
-# Apply the no data value to the entire numpy array
-#src = apply_no_data_val(src_NP, nodata)
+    # Apply the no data value to the entire numpy array
+    #src = apply_no_data_val(src_NP, nodata)
 
-Albedo_Temp = albedo_calculator(src_NP)
-print("Done")
+    Albedo_Temp = albedo_calculator(src_NP)
+    print("Done!")
 
-write_band(src_GDAL,Albedo_Temp, "D:\\Downloaded_data\\HHA_Export_Albedo", "Test1.tiff")
+    write_band(src_GDAL, Albedo_Temp, "D:\\Downloaded_data\\HHA_Calculated_Albedo", file)
+    print("Albedo Calcualted")
 
