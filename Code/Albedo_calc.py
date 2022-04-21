@@ -129,7 +129,7 @@ def write_band(raster_GDAL, band, dest_dir, out_fn):
 
     print('Writing tif...')
     driver = gdal.GetDriverByName("GTiff")
-    dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Int16, options=["COMPRESS=LZW"])
+    dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Float32, options=["COMPRESS=LZW"])
     CopyDatasetInfo(raster_GDAL,dsOut)
     dsOut.GetRasterBand(1).WriteArray(band)
     # dsOut.GetRasterBand(1).SetNoDataValue(10001)
@@ -162,6 +162,6 @@ for file in file_list:
     Albedo_Temp = albedo_calculator(src_NP)
     print("Done!")
 
-    write_band(src_GDAL, Albedo_Temp, "D:\\Downloaded_data\\HHA_Calculated_Albedo", file)
+    write_band(src_GDAL, Albedo_Temp, "D:\\Data\\HHA_Calculated_Albedo", file) #define outdirectory
     print("Albedo Calcualted")
-
+        #fix file names-- extract date from string or add on _albedo
