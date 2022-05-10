@@ -9,6 +9,7 @@ from osgeo.gdalnumeric import CopyDatasetInfo, BandWriteArray
 import lidario as lio
 import pandas as pd
 import time
+import matplotlib.pyplot as plt
 
 start_time = time.time()
 
@@ -94,20 +95,31 @@ def band_math(raster, index):
     if index == 'NDVI' or index ==  'ndvi':
         print("Calculating NDVI...")
         out = np.zeros(raster[0,:,:].shape, dtype=np.float16)
-        out = scale_factor((raster[4,:,:].astype(float)-raster[2,:,:].astype(float))/(raster[4,:,:]+raster[2,:,:]))
+        a = (raster[4,:,:].astype(float)-raster[2,:,:].astype(float)).filled(fill_value=np.nan)
+        b = (raster[4,:,:].astype(float)+raster[2,:,:].astype(float)).filled(fill_value=np.nan)
+        out = scale_factor(np.divide(a,b,where=b!=0))
+        # out = scale_factor((raster[4,:,:].astype(float)-raster[2,:,:].astype(float))/(raster[4,:,:].astype(float)+raster[2,:,:].astype(float)))
         print("Done!")
     elif index == 'NDWI' or index == 'ndwi':
         print("Calculating NDWI...")
         out = np.zeros(raster[0,:,:].shape, dtype=np.float16)
-        out = scale_factor((raster[1,:,:].astype(float)-raster[4,:,:].astype(float))/(raster[1,:,:]+raster[4,:,:]))
+        a = (raster[1,:,:].astype(float)-raster[4,:,:].astype(float)).filled(fill_value=np.nan)
+        b = (raster[1,:,:].astype(float)+raster[4,:,:].astype(float)).filled(fill_value=np.nan)
+        out = scale_factor(np.divide(a,b,where=b!=0))
+        # out = scale_factor((raster[1,:,:].astype(float)-raster[4,:,:].astype(float))/(raster[1,:,:].astype(float)+raster[4,:,:].astype(float)))
         print("Done!")
     elif index == 'MSAVI2' or index == 'msavi2':
         print("Calculating MSAVI2...")
         out = np.zeros(raster[0,:,:].shape, dtype=np.float16)
-        # out = scale_factor((((2*raster[4,:,:].astype(float))+1) - np.sqrt((((2*raster[4,:,:].astype(float))+1)**2) - (8*(raster[4,:,:].astype(float) - raster[2,:,:].astype(float)))))/2)
-        out = scale_factor((1/2)*(2*(raster[4,:,:].astype(float)+1)-np.sqrt((2*raster[4,:,:].astype(float)+1)**2-8*(raster[4,:,:].astype(float)-raster[2,:,:].astype(float)))))
+        out = scale_factor((((2*raster[4,:,:].astype(float))+1) - np.sqrt((((2*raster[4,:,:].astype(float))+1)**2) - (8*(raster[4,:,:].astype(float) - raster[2,:,:].astype(float)))))/2)
+        # out = scale_factor((2 * (raster[4,:,:].astype(float) + 1) - np.sqrt((2 * raster[4,:,:].astype(float) + 1)**2 - 8 * (raster[4,:,:].astype(float) - raster[2,:,:].astype(float)))) / 2)
+        # out = scale_factor((1/2)*(2*(raster[4,:,:].astype(float)+1)-np.sqrt((2*raster[4,:,:].astype(float)+1)**2-8*(raster[4,:,:].astype(float)-raster[2,:,:].astype(float)))))
+        out[out < -1] = -1
+        out = out.filled(fill_value=np.nan)
         print("Done!")
-    return out.astype(np.int16)
+    return np.nan_to_num(out,nan=-32767.0).astype(np.int16)
+#out.astype(np.int16)
+#.filled(fill_value=32767.0).astype(np.int16)
 
 
 def GDAL_read_tiff(fn):
@@ -225,22 +237,28 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
     out_fn: Output filename
     '''
 
-    if arg.CSV:
-        numpy2CSV(band,dest_dir,out_fn)
+
     
     if band.dtype == 'int16':
+        if arg.CSV:
+            numpy2CSV(band,dest_dir,out_fn,-32767)
         print('Writing tif...')
-        band = band.filled(fill_value=10001)
+        # band = band.filled(fill_value=10001)
+        
         driver = gdal.GetDriverByName("GTiff")
         
         dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Int16, options=["COMPRESS=LZW"])
         CopyDatasetInfo(raster_GDAL,dsOut)
         dsOut.GetRasterBand(1).WriteArray(band)
-        dsOut.GetRasterBand(1).SetNoDataValue(10001)
+        dsOut.GetRasterBand(1).SetNoDataValue(-32767)
+        # dsOut.GetRasterBand(1).SetNoDataValue(np.nan)
         dsOut.FlushCache()
     elif band.dtype == 'uint16':
-        print('Writing tif...')
+       
         band = band.filled(fill_value=65535)
+        if arg.CSV:
+            numpy2CSV(band,dest_dir,out_fn,65535)
+        print('Writing tif...')
         driver = gdal.GetDriverByName("GTiff")
         
         dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_UInt16, options=["COMPRESS=LZW"])
@@ -254,12 +272,24 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
 
     return None 
 
-def numpy2CSV(arr, dir, fn):
+def numpy2CSV(arr, dir, fn ,nodata):
 
     arr_reshape = arr.reshape(arr.size)
-    arr_no_mask = arr_reshape.compressed()
+    arr_no_mask = arr_reshape[arr_reshape != nodata]
+    # arr_no_mask = arr_reshape.compressed()
     print("writing csv...")
     np.savetxt(os.path.join(dir, fn)+'.csv',arr_no_mask,fmt='%i',delimiter=',')
+    print("Done")
+
+    return None
+
+def numpy2CSV_float(arr, dir, fn ,nodata):
+
+    arr_reshape = arr.reshape(arr.size)
+    arr_no_mask = arr_reshape[arr_reshape != nodata]
+    # arr_no_mask = arr_reshape.compressed()
+    print("writing csv...")
+    np.savetxt(os.path.join(dir, fn)+'.csv',arr_no_mask,fmt='%f',delimiter=',')
     print("Done")
 
     return None
@@ -276,11 +306,13 @@ def calc_slope(fn_DEM, dest_dir, arg):
     '''
 
     print('Calculating slope...')
-    opts = gdal.DEMProcessingOptions(slopeFormat="degree")
+    opts = gdal.DEMProcessingOptions(slopeFormat="degree",computeEdges=True)
     fn = 'DEM_slope.tif'
+    slope_gdal = gdal.DEMProcessing(os.path.join(dest_dir, fn),fn_DEM,"slope",options=opts)
     gdal.DEMProcessing(os.path.join(dest_dir, fn),fn_DEM,"slope",options=opts)
     if arg.CSV:
-        tif2csv(fn_DEM, fn, dest_dir)
+        slope_np = slope_gdal.ReadAsArray()
+        numpy2CSV_float(slope_np,dest_dir,fn,-9999.)
     print("Done!")
 
 def calc_roughness(fn_DEM, dest_dir, arg):
@@ -295,10 +327,16 @@ def calc_roughness(fn_DEM, dest_dir, arg):
     '''
 
     print('Calculating roughness...')
+    opts = gdal.DEMProcessingOptions(computeEdges=True)
+
     fn = 'DEM_roughness.tif'
+    roughness_gdal = gdal.DEMProcessing(os.path.join(dest_dir, fn),fn_DEM,"roughness",options=opts)
     gdal.DEMProcessing(os.path.join(dest_dir, fn),fn_DEM,"roughness")
+    
     if arg.CSV:
-        tif2csv(fn_DEM, fn, dest_dir)
+        roughness_np = roughness_gdal.ReadAsArray()
+        numpy2CSV_float(roughness_np, dest_dir, fn, -9999.)
+        # tif2csv(fn_DEM, fn, dest_dir)
     print("Done!")
 
 def calc_aspect(fn_DEM, dest_dir, arg):
@@ -312,11 +350,14 @@ def calc_aspect(fn_DEM, dest_dir, arg):
     dest_dir: Destination directory 
     '''
     print('Calculating aspect...')
-    opts = gdal.DEMProcessingOptions()
+    opts = gdal.DEMProcessingOptions(computeEdges=True)
     fn = 'DEM_aspect.tif'
+    aspect_gdal = gdal.DEMProcessing(os.path.join(dest_dir,fn),fn_DEM,"aspect",options=opts)
     gdal.DEMProcessing(os.path.join(dest_dir,fn),fn_DEM,"aspect",options=opts)
     if arg.CSV:
-        tif2csv(fn_DEM, fn, dest_dir)
+        aspect_np = aspect_gdal.ReadAsArray()
+        numpy2CSV_float(aspect_np.astype(np.int16), dest_dir, fn, -9999.0)
+
     print("Done!")
 
 def calc_hillshade(fn_DEM, dest_dir, azi, alt, arg):
@@ -332,17 +373,19 @@ def calc_hillshade(fn_DEM, dest_dir, azi, alt, arg):
     alt: Solar altitude 0-90 [deg]
     '''
     print('Calculating hillshade...')
-    opts = gdal.DEMProcessingOptions(azimuth=azi, altitude=alt)
+    opts = gdal.DEMProcessingOptions(azimuth=azi, altitude=alt, computeEdges=True)
     fn = 'DEM_hs.tif'
+    hs_gdal = gdal.DEMProcessing(os.path.join(dest_dir,fn),fn_DEM,"hillshade",options=opts)
     gdal.DEMProcessing(os.path.join(dest_dir,fn),fn_DEM,"hillshade",options=opts)
     if arg.CSV:
-        tif2csv(fn_DEM, fn, dest_dir)
+        hs_np = hs_gdal.ReadAsArray()
+        numpy2CSV(hs_np.astype(np.int16), dest_dir, fn, 0)
     print("Done!")
 
 def tif2csv(fn,fn_out,dest):
         np_ras, gdal_ras, nodat = read_in_raster(fn)
         print('Convert to csv...')
-        numpy2CSV(np_ras,dest,fn_out)
+        numpy2CSV(np_ras.filled(nodat),dest,fn_out,float(nodat))
 
 def read_in_raster(fn):
     '''
@@ -441,7 +484,7 @@ if args.hillshade:
     # Get solar azimuth and altitude
     s_alt,s_azi = get_solar_azi_alt(flight_dt_tz_aware,tube_lat,tube_lon)
 
-    # Calcualte and write hillshade from DEM. Solar azimuth and altitude calculated from position of tube and time of flight. 
+    # Calculate and write hillshade from DEM. Solar azimuth and altitude calculated from position of tube and time of flight. 
     calc_hillshade(DEM, d_dir, s_azi, s_alt, args)
 
 print("--- %s seconds ---" % (time.time()-start_time))
