@@ -161,5 +161,5 @@ for file in file_list:
     Albedo_Temp = albedo_calculator(src_NP)
     print("Done!")
 
-    write_band(src_GDAL, Albedo_Temp, "D:\\Data\\HHA_Calculated_Albedo", file + "_Albedo") #define outdirectory
+    write_band(src_GDAL, Albedo_Temp, "D:\\Data\\HHA_Calculated_Albedo", "Albedo" +  file ) #define outdirectory
     print("Albedo Calcualted")
