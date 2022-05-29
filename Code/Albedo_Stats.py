@@ -123,7 +123,7 @@ for eachfile in working_list:
     print("done!")
 
 
-full_stack = np.stack(array_list, axis = 0)  #i saw the .shape online, dunno if I need it
+full_stack = np.stack(array_list, axis = 0) 
 average = np.average(full_stack, axis = 0)
 std_dev = np.std(full_stack, axis = 0)
 print("Done!")
