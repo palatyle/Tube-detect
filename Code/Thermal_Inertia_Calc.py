@@ -53,7 +53,7 @@ def get_solar_azi_alt(dt,lat,lon):
     s_alt,s_azi = get_solar_azi_alt(flight_dt_tz_aware,tube_lat,tube_lon)
 
 
-angular_frequency = 7.2921159*10^(-5)
+angular_frequency = 7.2921159*10**(-5)
 day_sat_time = # insert input to the function--overpass time
 night_sat_time = # insert input to the function-- overpass time
 day_temp = # temperature at time day_sat_time
@@ -75,6 +75,21 @@ albedo = average #need to get this from Albedo_Stats or my files and properly fo
 ATI = (1-albedo)/temp_change
 
 
+solar_constant = 1380 # w/m^2 for earth
+Ct_transmittance = 0.75 # atmospheric transmittance for earth. 0.75 obtained from email.
+solar_dec_day = #solar declination at time day_sat_time
+solar_dec_night = # solar declination at time night_sat_time
+latitude = #insert latitude for HHA
+variable = # figure this out with tyler
+xi_constant = (np.arccos[np.tan(variable)*np.tan(latitude)])
+
+A1_fourier = ((2/np.pi)*(np.sin(variable)*(np.sin(latitude)))) + (
+    (1/2*np.pi)*(np.cos(variable)*(np.cos(latitude)))) * ([np.sin(2*xi_constant) + (2*xi_constant)])
+
+
+A2_fourier = (((2*np.sin(variable)*(np.sin(latitude)))/(2*np.pi))*(np.sin(2*xi_constant))) + (
+    (2*np.cos(variable)*(np.cos(latitude))/(np.pi*(2**2 - 1)))*[(2*(np.sin(2*xi_constant))*(np.cos(xi_constant))) - 
+    ((np.cos(2*xi_constant))*(np.sin(xi_constant)))])
 
 thermal_inertia = 
 
