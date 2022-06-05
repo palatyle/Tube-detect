@@ -64,13 +64,13 @@ def deg2rad(angle):
     return angle*((2*np.pi)/360)
 
 
-angular_frequency = 7.2921159*10**(-5) # rad/sec             add calculations into here
+angular_frequency = 7.27*10**(-5) # rad/sec                maltese et al
 day_sat_time = # insert input to the function--overpass time
 night_sat_time = # insert input to the function-- overpass time
 day_temp = # temperature at time day_sat_time
 night_temp = # temperature at time night_sat_time
-t_max = 1400 #??? Ask Tyler and find out because t_max and t_min (with the small t's) are not defined in the paper.
-t_min = 0200 #datetime objects
+t_max = 5040000 # 1400*60*60 -> hours to seconds conversion      scheidt et al
+t_min = 720000 # 0200*60*60 -> hours to seconds conversion       scheidt et al
 
 Tmax = (day_temp +((day_temp - night_temp)*[(np.cos(angular_frequency*t_max)) -
  (np.cos(angular_frequency*day_sat_time))])/((np.cos(angular_frequency*day_sat_time)) -(np.cos(angular_frequency*night_sat_time))))
@@ -86,7 +86,7 @@ albedo = average #need to get this from Albedo_Stats or my files and properly fo
 ATI = ((1-albedo)/temp_change)
 
 b = ((np.tan(angular_frequency*t_max))/(1-(np.tan(angular_frequency*t_max))))
-solar_constant = 1380 # w/m^2 for earth
+solar_constant = 1380 # w/m^2 for earth         cite source
 Ct_transmittance = 0.75 # atmospheric transmittance for earth. 0.75 obtained from email.
 solar_declination = #add equation here (function) gonna get from tyler
 
@@ -96,7 +96,7 @@ phase_diff_2 = #get from sheidt paper
 
 
 latitude = #insert latitude for HHA input
-xi_constant = (np.arccos(np.tan(solar_declination)*np.tan(latitude)))    #call deg2rad around all latituces!
+xi_constant = (np.arccos(np.tan(solar_declination)*np.tan(latitude)))    #call deg2rad around all latitudes!
 
 
 A1_fourier = (((2/np.pi)*(np.sin(solar_declination)*(np.sin(latitude)))) + (
