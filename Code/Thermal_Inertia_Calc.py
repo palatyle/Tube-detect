@@ -65,8 +65,8 @@ def deg2rad(angle):
 
 
 angular_frequency = 7.27*10**(-5) # rad/sec                maltese et al
-day_sat_time = # insert input to the function--overpass time
-night_sat_time = # insert input to the function-- overpass time
+day_sat_time = 3960000 # 1100*60*60         Scheidt et al
+night_sat_time = 7956000 # 2210*60*60       Scheidt et al
 day_temp = # temperature at time day_sat_time
 night_temp = # temperature at time night_sat_time
 t_max = 5040000 # 1400*60*60 -> hours to seconds conversion      scheidt et al
@@ -86,28 +86,31 @@ albedo = average #need to get this from Albedo_Stats or my files and properly fo
 ATI = ((1-albedo)/temp_change)
 
 b = ((np.tan(angular_frequency*t_max))/(1-(np.tan(angular_frequency*t_max))))
-solar_constant = 1380 # w/m^2 for earth         cite source
-Ct_transmittance = 0.75 # atmospheric transmittance for earth. 0.75 obtained from email.
+solar_constant = 1367 # W/m**2 for earth        V. M. Fedorov 
+Ct_transmittance = 0.75 # atmospheric transmittance for Earth     scheidt et al  
 solar_declination = #add equation here (function) gonna get from tyler
 
-phase_diff_1 = #get from sheidt paper
-phase_diff_2 = #get from sheidt paper
-#change these in all the code? (thermal inertia calculation)
+phase_diff_1 = (np.arctan(b/(1+b)))     #scheidt et al
+phase_diff_2 = (np.arctan((b*np.sqrt(2))/(1+(b*np.sqrt(2)))))   #scheidt et al
+#change these in all the code? (thermal inertia calculation) ---> WHAT DOES THIS MEEEAN?
 
 
 latitude = #insert latitude for HHA input
-xi_constant = (np.arccos(np.tan(solar_declination)*np.tan(latitude)))    #call deg2rad around all latitudes!
+xi_constant = (np.arccos(np.tan(solar_declination)*np.tan(deg2rad(latitude))))    #call deg2rad around all latitudes!
 
 
-A1_fourier = (((2/np.pi)*(np.sin(solar_declination)*(np.sin(latitude)))) + (
-    (1/2*np.pi)*(np.cos(solar_declination)*(np.cos(latitude)))) * ([np.sin(2*xi_constant) + (2*xi_constant)]))
+A1_fourier = (((2/np.pi)*(np.sin(solar_declination)*(np.sin(deg2rad(latitude))))) + (
+    (1/2*np.pi)*(np.cos(solar_declination)*(np.cos(deg2rad(latitude))))) * ([np.sin(2*xi_constant) + (2*xi_constant)]))
 
 
-A2_fourier = ((((2*np.sin(solar_declination)*(np.sin(latitude)))/(2*np.pi))*(np.sin(2*xi_constant))) + (
-    (2*np.cos(solar_declination)*(np.cos(latitude))/(np.pi*(2**2 - 1)))*[(2*(np.sin(2*xi_constant))*(np.cos(xi_constant))) - 
+A2_fourier = ((((2*np.sin(solar_declination)*(np.sin(deg2rad(latitude))))/(2*np.pi))*(np.sin(2*xi_constant))) + (
+    (2*np.cos(solar_declination)*(np.cos(deg2rad(latitude)))/(np.pi*(2**2 - 1)))*[(2*(np.sin(2*xi_constant))*(np.cos(xi_constant))) - 
     ((np.cos(2*xi_constant))*(np.sin(xi_constant)))]))
 
-thermal_inertia =
-
+thermal_inertia = ((ATI*((solar_constant*Ct_transmittance)/np.sqrt(angular_frequency)))*(
+    ((A1_fourier*((np.cos((angular_frequency*night_sat_time)-phase_diff_1))-(np.cos((angular_frequency*day_sat_time)-phase_diff_1))))/
+    (np.sqrt(1+(1/b)+(1/(2*b**2))))) +
+    ((A2_fourier+((np.cos((angular_frequency*night_sat_time)-phase_diff_2))-(np.cos((angular_frequency*day_sat_time)-phase_diff_2))))/
+    (np.sqrt(2+(np.sqrt(2)/b)+(1/(2*b**2)))))))
 
 
