@@ -140,7 +140,7 @@ def write_band(raster_GDAL, band, dest_dir, out_fn):
 
     return None
 
-HHA_dir = "D:\\Downloaded_data\\hells_half_acre\\HHA\\Processed_Products\\Forreal_products"
+HHA_dir = "E:\\Downloaded_data\\hells_half_acre\\HHA\\Processed_Products\\Forreal_products"
 os.chdir(HHA_dir)
 file_list = os.listdir(HHA_dir)
 
@@ -161,5 +161,5 @@ for file in file_list:
     Albedo_Temp = albedo_calculator(src_NP)
     print("Done!")
 
-    write_band(src_GDAL, Albedo_Temp, "D:\\Data\\HHA_Calculated_Albedo", "Albedo" +  file ) #define outdirectory
+    write_band(src_GDAL, Albedo_Temp, "E:\\Data\\HHA_Calculated_Albedo", "Albedo" +  file ) #define outdirectory
     print("Albedo Calcualted")
