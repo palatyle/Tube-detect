@@ -1,7 +1,10 @@
+from os import read
 import numpy as np
 from pysolar import solar
 from datetime import datetime
 import pytz
+from osgeo import gdal
+import matplotlib.pyplot as plt
 
 
 def get_dt_obj(dt,tzone = 'US/Mountain'):
@@ -63,20 +66,122 @@ def deg2rad(angle):
           """
     return angle*((2*np.pi)/360)
 
+def GDAL_read_tiff(fn):
+    '''
+    Returns GDAL raster object
 
+    Parameters
+    ----------
+    fn: Full directory and filename of .tiff 
+
+    Returns
+    -------
+    raster: GDAL raster object
+    '''
+    print("reading in GDAL obj...")
+    raster = gdal.Open(fn)
+    print("Done!")
+    return raster
+
+def get_no_data_val(ds):
+    '''
+    Returns no data value present in GDAL raster dataset
+
+    Parameters
+    ----------
+    ds: GDAL raster object
+
+    Returns
+    -------
+    no data value in uint16 format
+    '''
+    # Read in 1st band to get access to nodata value
+    dummy_band = ds.GetRasterBand(1)
+    no_data = dummy_band.GetNoDataValue()
+
+    # Return no data value rounded to nearest integer value
+    return round(no_data)
+
+def GDAL2NP(raster):
+    '''
+    Returns N dimensional numpy array of GDAL raster object
+
+    Parameters
+    ----------
+    raster: GDAL raster object
+
+    Returns
+    -------
+    raster_NP: raster numpy array
+    '''
+    print("Convert to numpy array...")
+    raster_NP = raster.ReadAsArray()
+    print("Done!")
+    return raster_NP
+
+def apply_no_data_val(ds, no_data):
+    '''
+    Returns numpy array with no data values masked out
+
+    Parameters
+    ----------
+    ds: Numpy raster object 
+    no_data: no data value
+
+    Returns
+    -------
+    Masked numpy array of original raster data
+    '''
+    return np.ma.masked_equal(ds,no_data)
+
+
+def read_in_raster(fn):
+    '''
+    
+    
+    '''    
+    # Read in raster dataset 
+    src_GDAL = GDAL_read_tiff(fn)
+
+    # Get no data value
+    nodata = get_no_data_val(src_GDAL)
+
+    # Convert GDAL raster dataset to a numpy array
+    src_NP = GDAL2NP(src_GDAL)
+
+    # Apply the no data value to the entire numpy arr
+    src = apply_no_data_val(src_NP, nodata)
+
+    # Free up some memory
+    src_NP = None
+
+    return src, src_GDAL, nodata
+
+
+raster,raster_GDAL,nodat = read_in_raster("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample_clip.tif")
+
+
+thermal = raster[5,:,:]
+pos = plt.imshow(thermal)
+plt.colorbar(pos)
+plt.show()
+print("wow!")
+
+
+'''
 angular_frequency = 7.27*10**(-5) # rad/sec                maltese et al
 day_sat_time = 3960000 # 1100*60*60         Scheidt et al
 night_sat_time = 7956000 # 2210*60*60       Scheidt et al
-day_temp = # temperature at time day_sat_time
-night_temp = # temperature at time night_sat_time
+#day_temp =  # temperature at time day_sat_time
+#night_temp = # temperature at time night_sat_time
 t_max = 5040000 # 1400*60*60 -> hours to seconds conversion      scheidt et al
 t_min = 720000 # 0200*60*60 -> hours to seconds conversion       scheidt et al
 
 Tmax = (day_temp +((day_temp - night_temp)*[(np.cos(angular_frequency*t_max)) -
- (np.cos(angular_frequency*day_sat_time))])/((np.cos(angular_frequency*day_sat_time)) -(np.cos(angular_frequency*night_sat_time))))
+(np.cos(angular_frequency*day_sat_time))])/((np.cos(angular_frequency*day_sat_time)) -(np.cos(angular_frequency*night_sat_time))))
 
 Tmin = (night_temp +((day_temp - night_temp)*[(np.cos(angular_frequency*t_min)) -
- (np.cos(angular_frequency*night_sat_time))])/((np.cos(angular_frequency*day_sat_time))-(np.cos(angular_frequency*night_sat_time))))
+(np.cos(angular_frequency*night_sat_time))])/((np.cos(angular_frequency*day_sat_time))-(np.cos(angular_frequency*night_sat_time))))
 
 
 temp_change = (Tmax - Tmin)
@@ -113,4 +218,4 @@ thermal_inertia = ((ATI*((solar_constant*Ct_transmittance)/np.sqrt(angular_frequ
     ((A2_fourier+((np.cos((angular_frequency*night_sat_time)-phase_diff_2))-(np.cos((angular_frequency*day_sat_time)-phase_diff_2))))/
     (np.sqrt(2+(np.sqrt(2)/b)+(1/(2*b**2)))))))
 
-
+'''
