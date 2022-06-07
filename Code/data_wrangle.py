@@ -188,7 +188,8 @@ def sol_decl(sol_app_longitude,corr_obliq):
     
     
 def calc_sol_dec(dt):
-    """Calculate solar declination for a given datetime
+    """Calculate solar declination for a given datetime 
+    Warning: Does not take timezones other than mountain time into account
 
     Args:
         dt (datetime obj): given datetime
