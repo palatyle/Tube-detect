@@ -1,3 +1,4 @@
+from statistics import mean
 from pysolar import solar
 import pytz
 from datetime import datetime
@@ -6,8 +7,6 @@ import numpy as np
 import argparse
 from osgeo import gdal
 from osgeo.gdalnumeric import CopyDatasetInfo, BandWriteArray
-import lidario as lio
-import pandas as pd
 import time
 import matplotlib.pyplot as plt
 
@@ -68,8 +67,157 @@ def get_solar_azi_alt(dt,lat,lon):
     alt = solar.get_altitude(lat,lon,dt)
     return alt, azi
 
+def get_utc_offset(dt):
+    
+    return 12 - (dt.tzinfo._utcoffset.seconds / 60 / 60)
+
+def date2jul(dt):
+    """Convert datetime object to julian day
+
+    Args:
+        dt (datatime obj): Time to convert 
+
+    Returns:
+        int: Date in julian day format
+    """    
+    ordinal_time = dt.toordinal() + 1721425 # convert from propletic gregorian to Julian days (1721425 is offset between these 2 systems)
+
+def julday2julcen(jd):
+    """Convert Julian to day to Julian century 
+
+    Args:
+        jd (int): Julian day
+
+    Returns:
+        float: Julian century
+    """    
+    return ((jd - 2451545)/36525)
+
+def mean_orb_obliq(jc):
+    """Calcualte mean orbital obliquity in degrees for a given julian century value
+
+    Args:
+        jc (float): julian century Value
+
+    Returns:
+        float: mean orbital obliquity in degrees
+    """    
+    return 23+(26+((21.448-jc*(46.815+jc*(0.00059-jc*0.001813))))/60)/60
+    
+def obliq_corr(obl,jc):
+    """Calculate corrected obliquity for a given obliquity value and julian century value 
+
+    Args:
+        obl (float): mean orbital obliquity in degrees
+        jc (float): julian century value
+
+    Returns:
+        float: Corrected obliquity in degrees
+    """    
+    return obl+0.00256*np.cos(np.deg2rad(125.04-1934.136*jc))
+
+def sol_geo_mean_lon(jc):
+    """Calculate the mean solar geometric longitude in degrees for a given julian century value
+
+    Args:
+        jc (float): julian century value
+
+    Returns:
+        float: mean solar geometric longitude in degrees
+    """    
+    return (280.46646+jc*(36000.76983 + jc*0.0003032)) % 360
+
+def sol_geo_mean_anom(jc):
+    """Calculate the mean solar geometric anomaly in degrees for a given julian century value
+
+    Args:
+        jc (float): julian century value
+
+    Returns:
+        gloat: Mean solar geometric anomaly in degrees
+    """    
+    return 357.52911+jc*(35999.05029 - 0.0001537*jc)
+
+def sol_eq_ctr(jc,sol_m_anom):
+    """Calculate the solar equation of center in degrees for a given julian century value and mean solar geometric anomaly
+
+    Args:
+        jc (float): julian century value
+        sol_m_anom (float): mean solar geometric anomaly in degrees
+
+    Returns:
+        float: solar equation of center
+    """    
+    return np.sin(np.deg2rad(sol_m_anom))*(1.914602-jc*(0.004817+0.000014*jc))+np.sin(np.deg2rad(2*sol_m_anom))*(0.019993-0.000101*jc)+np.sin(np.deg2rad(3*sol_m_anom))*0.000289
+
+def sol_true_lon(sol_m_lon,sol_ctr):
+    """Calculate the solar true longitude in degrees for a given mean solar geometric longitude and solar equation of center
+
+    Args:
+        sol_m_lon (float): mean solar geometric longitude in degrees
+        sol_ctr (float): solar equation of center
+
+    Returns:
+        float: solar true longitude in degrees
+    """    
+    return (sol_m_lon+sol_ctr)
+
+def sol_app_lon(sol_true_longitude,jc):
+    """Calculate the solar apparent longitude in degrees for a given solar true longitude and julian century value
+
+    Args:
+        sol_true_longitude (float): solar true longitude in degrees
+        jc (float): julian century value
+
+    Returns:
+        float: solar apparent longitude in degrees
+    """    
+    return sol_true_longitude-0.00569-0.00478*np.sin(np.deg2rad(125.04-1934.136*jc))
+
+def sol_decl(sol_app_longitude,corr_obliq):
+    """Calculate the solar declination in degrees for a given solar apparent longitude and corrected obliquity
+
+    Args:
+        sol_app_longitude (_type_): _description_
+        corr_obliq (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """    
+    return np.rad2deg(np.arcsin(np.sin(np.deg2rad(corr_obliq))*np.sin(np.deg2rad(sol_app_longitude))))
+    
+    
+def calc_sol_dec(dt):
+    """Calculate solar declination for a given datetime
+
+    Args:
+        dt (datetime obj): given datetime
+
+    Returns:
+        float: Solar declination in degrees
+    """    
+    jul_dat = date2jul(dt)
+    jul_dat_cen = julday2julcen(jul_dat)
+    orb_obliq = mean_orb_obliq(jul_dat_cen)
+    corr_obliquity = obliq_corr(orb_obliq,jul_dat_cen)
+    mean_lon_sol = sol_geo_mean_lon(jul_dat_cen)
+    mean_sol_anom = sol_geo_mean_anom(jul_dat_cen)
+    sol_cent = sol_eq_ctr(jul_dat_cen,mean_sol_anom)
+    true_lon_sol = sol_true_lon(mean_lon_sol,sol_cent)
+    app_sol_lon = sol_app_lon(true_lon_sol,jul_dat_cen)
+    return sol_decl(app_sol_lon,corr_obliquity)
+
 def scale_factor(raster):
+    """Apply scale factor of 10000 to raster
+
+    Args:
+        raster (numpy arr): raster array
+
+    Returns:
+        numpy arr: raster array scaled by 10000
+    """    
     return raster * 10000
+    
 
 def band_math(raster, index):
     '''
@@ -484,6 +632,9 @@ if args.hillshade:
     # Get solar azimuth and altitude
     s_alt,s_azi = get_solar_azi_alt(flight_dt_tz_aware,tube_lat,tube_lon)
 
+ 
+    sol_dec = calc_sol_dec(flight_dt_tz_aware)
+    
     # Calculate and write hillshade from DEM. Solar azimuth and altitude calculated from position of tube and time of flight. 
     calc_hillshade(DEM, d_dir, s_azi, s_alt, args)
 
