@@ -6,6 +6,19 @@ import pytz
 from osgeo import gdal
 import matplotlib.pyplot as plt
 
+import data_wrangle 
+data_wrangle.calc_sol_dec()
+data_wrangle.date2jul()
+data_wrangle.julday2julcen()
+data_wrangle.mean_orb_obliq()
+data_wrangle.obliq_corr()
+data_wrangle.sol_geo_mean_lon()
+data_wrangle.sol_geo_mean_anom()
+data_wrangle.sol_eq_ctr()
+data_wrangle.sol_true_lon()
+data_wrangle.sol_app_lon()
+data_wrangle.sol_decl()
+
 
 def get_dt_obj(dt,tzone = 'US/Mountain'):
     '''
