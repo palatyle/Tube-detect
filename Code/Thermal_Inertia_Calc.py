@@ -7,17 +7,8 @@ from osgeo import gdal
 import matplotlib.pyplot as plt
 
 import data_wrangle 
-data_wrangle.calc_sol_dec()
-data_wrangle.date2jul()
-data_wrangle.julday2julcen()
-data_wrangle.mean_orb_obliq()
-data_wrangle.obliq_corr()
-data_wrangle.sol_geo_mean_lon()
-data_wrangle.sol_geo_mean_anom()
-data_wrangle.sol_eq_ctr()
-data_wrangle.sol_true_lon()
-data_wrangle.sol_app_lon()
-data_wrangle.sol_decl()
+
+#data_wrangle.get_dt_obj(dt)
 
 
 def get_dt_obj(dt,tzone = 'US/Mountain'):
@@ -171,22 +162,23 @@ def read_in_raster(fn):
     return src, src_GDAL, nodata
 
 
-raster,raster_GDAL,nodat = read_in_raster("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample_clip.tif")
+raster_day,raster_GDAL_day,_ = read_in_raster("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample_clip.tif")
+#we will also be reading in night data here
+raster_night,raster_GDAL_night,_ = read_in_raster("E:\\Downloaded_data\\needed_files\\night_ortho.tif")
 
 
-thermal = raster[5,:,:]
-pos = plt.imshow(thermal)
+'''pos = plt.imshow(day_temp)
 plt.colorbar(pos)
 plt.show()
 print("wow!")
-
-
 '''
+
+
 angular_frequency = 7.27*10**(-5) # rad/sec                maltese et al
 day_sat_time = 3960000 # 1100*60*60         Scheidt et al
 night_sat_time = 7956000 # 2210*60*60       Scheidt et al
-#day_temp =  # temperature at time day_sat_time
-#night_temp = # temperature at time night_sat_time
+day_temp = raster_day[5,:,:]
+night_temp = raster_night
 t_max = 5040000 # 1400*60*60 -> hours to seconds conversion      scheidt et al
 t_min = 720000 # 0200*60*60 -> hours to seconds conversion       scheidt et al
 
@@ -200,20 +192,22 @@ Tmin = (night_temp +((day_temp - night_temp)*[(np.cos(angular_frequency*t_min)) 
 temp_change = (Tmax - Tmin)
 
 
-albedo = average #need to get this from Albedo_Stats or my files and properly format it with Tyler's help
+albedo,albedo_GDAL,_ = read_in_raster("E:\\Data\\Georeference_Outputs\\Average.tiff")
 ATI = ((1-albedo)/temp_change)
 
 b = ((np.tan(angular_frequency*t_max))/(1-(np.tan(angular_frequency*t_max))))
 solar_constant = 1367 # W/m**2 for earth        V. M. Fedorov 
 Ct_transmittance = 0.75 # atmospheric transmittance for Earth     scheidt et al  
-solar_declination = #add equation here (function) gonna get from tyler
+flight_dt = datetime.fromisoformat('2022-06-17 13:00:00')# Get timezone aware datetime object
+flight_dt_tz_aware = data_wrangle.get_dt_obj(flight_dt, 'US/Mountain')
+solar_declination = data_wrangle.calc_sol_dec(flight_dt_tz_aware)
+
+
 
 phase_diff_1 = (np.arctan(b/(1+b)))     #scheidt et al
 phase_diff_2 = (np.arctan((b*np.sqrt(2))/(1+(b*np.sqrt(2)))))   #scheidt et al
-#change these in all the code? (thermal inertia calculation) ---> WHAT DOES THIS MEEEAN?
 
-
-latitude = #insert latitude for HHA input
+latitude = 43.4956
 xi_constant = (np.arccos(np.tan(solar_declination)*np.tan(deg2rad(latitude))))    #call deg2rad around all latitudes!
 
 
@@ -230,5 +224,3 @@ thermal_inertia = ((ATI*((solar_constant*Ct_transmittance)/np.sqrt(angular_frequ
     (np.sqrt(1+(1/b)+(1/(2*b**2))))) +
     ((A2_fourier+((np.cos((angular_frequency*night_sat_time)-phase_diff_2))-(np.cos((angular_frequency*day_sat_time)-phase_diff_2))))/
     (np.sqrt(2+(np.sqrt(2)/b)+(1/(2*b**2)))))))
-
-'''
