@@ -81,6 +81,7 @@ def date2jul(dt):
         int: Date in julian day format
     """    
     ordinal_time = dt.toordinal() + 1721425 # convert from propletic gregorian to Julian days (1721425 is offset between these 2 systems)
+    return ordinal_time
 
 def julday2julcen(jd):
     """Convert Julian to day to Julian century 
