@@ -2,64 +2,7 @@ import os
 import numpy as np
 from osgeo import gdal
 from osgeo.gdalnumeric import CopyDatasetInfo, BandWriteArray
-
-def GDAL_read_tiff(fn):
-    '''
-    Returns GDAL raster object
-    Parameters
-    ----------
-    fn: Full directory and filename of .tiff 
-    Returns
-    -------
-    raster: GDAL raster object
-    '''
-    raster = gdal.Open(fn)
-    return raster
-
-def get_no_data_val(ds):
-    '''
-    Returns no data value present in GDAL raster dataset
-    Parameters
-    ----------
-    ds: GDAL raster object
-    Returns
-    -------
-    no data value in uint16 format
-    '''
-    # Read in 1st band to get access to nodata value
-    dummy_band = ds.GetRasterBand(1)                                                          
-    no_data = dummy_band.GetNoDataValue()                                                 
-
-    # Return no data value as a unsigned 16 bit integer (to match input dataset)
-    return np.uint16(no_data)
-
-def GDAL2NP(raster):
-    '''
-    Returns N dimensional numpy array of GDAL raster object
-    Parameters
-    ----------
-    raster: GDAL raster object
-    Returns
-    -------
-    raster_NP: raster numpy array
-    '''
-    print("Convert to numpy array...")
-    raster_NP = raster.ReadAsArray()
-    print("Done!")
-    return raster_NP
-
-def apply_no_data_val(ds, no_data):
-    '''
-    Returns numpy array with no data values masked out
-    Parameters
-    ----------
-    ds: Numpy raster object 
-    no_data: no data value
-    Returns
-    -------
-    Masked numpy array of original raster data
-    '''
-    return np.ma.masked_equal(ds,no_data)
+import data_wrangle
 
 def scale_factor(raster):
     return raster * 10000
@@ -147,16 +90,16 @@ file_list = os.listdir(HHA_dir)
 for file in file_list:
     print(file)
     # Read in raster dataset 
-    src_GDAL = GDAL_read_tiff(file)
+    src_GDAL = data_wrangle.GDAL_read_tiff(file)
 
     # Get no data value
-    #nodata = get_no_data_val(src_GDAL)
+    #nodata = data_wrangle.get_no_data_val(src_GDAL)
 
     # Convert GDAL raster dataset to a numpy array
-    src_NP = GDAL2NP(src_GDAL)
+    src_NP = data_wrangle.GDAL2NP(src_GDAL)
 
     # Apply the no data value to the entire numpy array
-    #src = apply_no_data_val(src_NP, nodata)
+    #src = data_wrangle.apply_no_data_val(src_NP, nodata)
 
     Albedo_Temp = albedo_calculator(src_NP)
     print("Done!")
