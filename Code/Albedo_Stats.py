@@ -5,35 +5,7 @@ from osgeo import gdal
 from osgeo.gdalnumeric import CopyDatasetInfo
 import PIL
 from PIL import Image
-
-
-def GDAL_read_tiff(fn):
-    '''
-    Returns GDAL raster object
-    Parameters
-    ----------
-    fn: Full directory and filename of .tiff 
-    Returns
-    -------
-    raster: GDAL raster object
-    '''
-    raster = gdal.Open(fn)
-    return raster
-
-def GDAL2NP(raster):
-    '''
-    Returns N dimensional numpy array of GDAL raster object
-    Parameters
-    ----------
-    raster: GDAL raster object
-    Returns
-    -------
-    raster_NP: raster numpy array
-    '''
-    print("Convert to numpy array...")
-    raster_NP = raster.ReadAsArray()
-    print("Done!")
-    return raster_NP    
+import data_wrangle
 
 def write_band(raster_GDAL, band, dest_dir, out_fn):
     '''
@@ -87,11 +59,11 @@ def write_band(raster_GDAL, band, dest_dir, out_fn):
 
 
 '''
-first_file = GDAL_read_tiff("E:\Data\HHA_Calculated_Albedo\AlbedoS2A_MSIL2A_20190511T181921_N0212_R127_T12TUP_20190511T224452_super_resolved.tif")
-first_raster = GDAL2NP(first_file)
+first_file = data_wrangle.GDAL_read_tiff("E:\Data\HHA_Calculated_Albedo\AlbedoS2A_MSIL2A_20190511T181921_N0212_R127_T12TUP_20190511T224452_super_resolved.tif")
+first_raster = data_wrangle.GDAL2NP(first_file)
 
-second_file = GDAL_read_tiff("E:\Data\HHA_Calculated_Albedo\AlbedoS2A_MSIL2A_20190720T181931_N0213_R127_T12TUP_20190721T001757_super_resolved.tif")
-second_raster = GDAL2NP(second_file)
+second_file = data_wrangle.GDAL_read_tiff("E:\Data\HHA_Calculated_Albedo\AlbedoS2A_MSIL2A_20190720T181931_N0213_R127_T12TUP_20190721T001757_super_resolved.tif")
+second_raster = data_wrangle.GDAL2NP(second_file)
 
 print("done")
 
@@ -112,8 +84,8 @@ working_list = os.listdir(working_directory)
 array_list = []
 
 for eachfile in working_list:
-    each_gdal = GDAL_read_tiff(eachfile)
-    each_raster = GDAL2NP(each_gdal)
+    each_gdal = data_wrangle.GDAL_read_tiff(eachfile)
+    each_raster = data_wrangle.GDAL2NP(each_gdal)
 
     # listtoarray_raster = np.array(each_raster)
     array_list.append(each_raster)
