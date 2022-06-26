@@ -10,41 +10,7 @@ import data_wrangle
 
 #data_wrangle.get_dt_obj(dt)
 
-
-def get_dt_obj(dt,tzone = 'US/Mountain'):
-    '''
-    Returns a timezone aware datetime object
-    
-    Parameters
-    ----------
-    dt: datetime object
-    tzone: time zone string
-    Returns
-    -------
-    Output localized timezone from pytz package
-    '''
-    tz = pytz.timezone(tzone)
-    return tz.localize(dt,is_dst=True)
-
-
-
-def get_solar_azi_alt(dt,lat,lon):
-    '''
-    Returns solar altitude and azimuth using solarpy packages
-    Parameters
-    ----------
-    dt: Timezone aware datetime object
-    lat: latitude of general tube location [deg]
-    lon: longitude of general tube location [deg]
-    Returns
-    -------
-    alt: altitude of sun from tangential plane of Earth's surface at lat,lon coords 0-90 [deg]
-    azi: azimuth of sun from north. 0 to 360 [deg]
-    '''
-    azi = solar.get_azimuth(lat,lon,dt)
-    alt = solar.get_altitude(lat,lon,dt)
-    return alt, azi
-
+'''
 #put this into own function -- Still need to do but awaiting instruction
 
     # Define time zone and datetime of flight
@@ -54,117 +20,15 @@ def get_solar_azi_alt(dt,lat,lon):
     flight_dt = datetime.fromisoformat(args.date)
 
     # Get timezone aware datetime object
-    flight_dt_tz_aware = get_dt_obj(flight_dt, tzone)
+    flight_dt_tz_aware = data_wrangle.get_dt_obj(flight_dt, tzone)
 
     # Get solar azimuth and altitude
-    s_alt,s_azi = get_solar_azi_alt(flight_dt_tz_aware,tube_lat,tube_lon)
+    s_alt,s_azi = data_wrangle.get_solar_azi_alt(flight_dt_tz_aware,tube_lat,tube_lon)
+'''
 
-def deg2rad(angle):
-    """_summary_
-
-    Args:
-        angle (float): angle in degrees
-
-    Returns:
-        float: angle in radians
-          """
-    return angle*((2*np.pi)/360)
-
-def GDAL_read_tiff(fn):
-    '''
-    Returns GDAL raster object
-
-    Parameters
-    ----------
-    fn: Full directory and filename of .tiff 
-
-    Returns
-    -------
-    raster: GDAL raster object
-    '''
-    print("reading in GDAL obj...")
-    raster = gdal.Open(fn)
-    print("Done!")
-    return raster
-
-def get_no_data_val(ds):
-    '''
-    Returns no data value present in GDAL raster dataset
-
-    Parameters
-    ----------
-    ds: GDAL raster object
-
-    Returns
-    -------
-    no data value in uint16 format
-    '''
-    # Read in 1st band to get access to nodata value
-    dummy_band = ds.GetRasterBand(1)
-    no_data = dummy_band.GetNoDataValue()
-
-    # Return no data value rounded to nearest integer value
-    return round(no_data)
-
-def GDAL2NP(raster):
-    '''
-    Returns N dimensional numpy array of GDAL raster object
-
-    Parameters
-    ----------
-    raster: GDAL raster object
-
-    Returns
-    -------
-    raster_NP: raster numpy array
-    '''
-    print("Convert to numpy array...")
-    raster_NP = raster.ReadAsArray()
-    print("Done!")
-    return raster_NP
-
-def apply_no_data_val(ds, no_data):
-    '''
-    Returns numpy array with no data values masked out
-
-    Parameters
-    ----------
-    ds: Numpy raster object 
-    no_data: no data value
-
-    Returns
-    -------
-    Masked numpy array of original raster data
-    '''
-    return np.ma.masked_equal(ds,no_data)
-
-
-def read_in_raster(fn):
-    '''
-    
-    
-    '''    
-    # Read in raster dataset 
-    src_GDAL = GDAL_read_tiff(fn)
-
-    # Get no data value
-    nodata = get_no_data_val(src_GDAL)
-
-    # Convert GDAL raster dataset to a numpy array
-    src_NP = GDAL2NP(src_GDAL)
-
-    # Apply the no data value to the entire numpy arr
-    src = apply_no_data_val(src_NP, nodata)
-
-    # Free up some memory
-    src_NP = None
-
-    return src, src_GDAL, nodata
-
-
-raster_day,raster_GDAL_day,_ = read_in_raster("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample_clip.tif")
+raster_day,raster_GDAL_day,_ = data_wrangle.read_in_raster("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample_clip.tif")
 #we will also be reading in night data here
-raster_night,raster_GDAL_night,_ = read_in_raster("E:\\Downloaded_data\\needed_files\\night_ortho.tif")
+raster_night,raster_GDAL_night,_ = data_wrangle.read_in_raster("E:\\Downloaded_data\\needed_files\\night_ortho.tif")
 
 
 '''pos = plt.imshow(day_temp)
@@ -192,7 +56,7 @@ Tmin = (night_temp +((day_temp - night_temp)*[(np.cos(angular_frequency*t_min)) 
 temp_change = (Tmax - Tmin)
 
 
-albedo,albedo_GDAL,_ = read_in_raster("E:\\Data\\Georeference_Outputs\\Average.tiff")
+albedo,albedo_GDAL,_ = data_wrangle.read_in_raster("E:\\Data\\Georeference_Outputs\\Average.tiff")
 ATI = ((1-albedo)/temp_change)
 
 b = ((np.tan(angular_frequency*t_max))/(1-(np.tan(angular_frequency*t_max))))
@@ -208,15 +72,15 @@ phase_diff_1 = (np.arctan(b/(1+b)))     #scheidt et al
 phase_diff_2 = (np.arctan((b*np.sqrt(2))/(1+(b*np.sqrt(2)))))   #scheidt et al
 
 latitude = 43.4956
-xi_constant = (np.arccos(np.tan(solar_declination)*np.tan(deg2rad(latitude))))    #call deg2rad around all latitudes!
+xi_constant = (np.arccos(np.tan(solar_declination)*np.tan(np.deg2rad(latitude))))    #call deg2rad around all latitudes!
 
 
-A1_fourier = (((2/np.pi)*(np.sin(solar_declination)*(np.sin(deg2rad(latitude))))) + (
-    (1/2*np.pi)*(np.cos(solar_declination)*(np.cos(deg2rad(latitude))))) * ([np.sin(2*xi_constant) + (2*xi_constant)]))
+A1_fourier = (((2/np.pi)*(np.sin(solar_declination)*(np.sin(np.deg2rad(latitude))))) + (
+    (1/2*np.pi)*(np.cos(solar_declination)*(np.cos(np.deg2rad(latitude))))) * ([np.sin(2*xi_constant) + (2*xi_constant)]))
 
 
-A2_fourier = ((((2*np.sin(solar_declination)*(np.sin(deg2rad(latitude))))/(2*np.pi))*(np.sin(2*xi_constant))) + (
-    (2*np.cos(solar_declination)*(np.cos(deg2rad(latitude)))/(np.pi*(2**2 - 1)))*[(2*(np.sin(2*xi_constant))*(np.cos(xi_constant))) - 
+A2_fourier = ((((2*np.sin(solar_declination)*(np.sin(np.deg2rad(latitude))))/(2*np.pi))*(np.sin(2*xi_constant))) + (
+    (2*np.cos(solar_declination)*(np.cos(np.deg2rad(latitude)))/(np.pi*(2**2 - 1)))*[(2*(np.sin(2*xi_constant))*(np.cos(xi_constant))) - 
     ((np.cos(2*xi_constant))*(np.sin(xi_constant)))]))
 
 thermal_inertia = ((ATI*((solar_constant*Ct_transmittance)/np.sqrt(angular_frequency)))*(
