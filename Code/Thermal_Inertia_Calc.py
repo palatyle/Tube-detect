@@ -21,9 +21,6 @@ import data_wrangle
 
     # Get timezone aware datetime object
     flight_dt_tz_aware = data_wrangle.get_dt_obj(flight_dt, tzone)
-
-    # Get solar azimuth and altitude
-    s_alt,s_azi = data_wrangle.get_solar_azi_alt(flight_dt_tz_aware,tube_lat,tube_lon)
 '''
 
 raster_day,raster_GDAL_day,_ = data_wrangle.read_in_raster("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample_clip.tif")
@@ -56,7 +53,7 @@ Tmin = (night_temp +((day_temp - night_temp)*[(np.cos(angular_frequency*t_min)) 
 temp_change = (Tmax - Tmin)
 
 
-albedo,albedo_GDAL,_ = data_wrangle.read_in_raster("E:\\Data\\Georeference_Outputs\\Average.tiff")
+albedo,albedo_GDAL,_ = data_wrangle.read_in_raster("E:\\Data\\Georeference_Outputs\\Average.tiff") #different res/size?
 ATI = ((1-albedo)/temp_change)
 
 b = ((np.tan(angular_frequency*t_max))/(1-(np.tan(angular_frequency*t_max))))
