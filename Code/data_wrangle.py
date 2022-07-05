@@ -403,6 +403,7 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
         dsOut.GetRasterBand(1).SetNoDataValue(-32767)
         # dsOut.GetRasterBand(1).SetNoDataValue(np.nan)
         dsOut.FlushCache()
+        
     elif band.dtype == 'uint16':
        
         band = band.filled(fill_value=65535)
@@ -417,6 +418,17 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
         dsOut.GetRasterBand(1).SetNoDataValue(65535)
         dsOut.FlushCache()
 
+    elif band.dtype == "float32":
+        print('Writing tif...')
+        driver = gdal.GetDriverByName("GTiff")
+        
+        dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Float32, options=["COMPRESS=LZW"])
+        CopyDatasetInfo(raster_GDAL,dsOut)
+        dsOut.GetRasterBand(1).WriteArray(band)
+        dsOut.FlushCache()
+        
+    
+    
     dsOut=None
 
 

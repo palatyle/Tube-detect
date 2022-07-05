@@ -2,10 +2,7 @@ import os
 import numpy as np
 from osgeo import gdal
 from osgeo.gdalnumeric import CopyDatasetInfo, BandWriteArray
-import data_wrangle
-
-def scale_factor(raster):
-    return raster * 10000
+import data_wrangle as dw
     
 def albedo_band_math(raster):
     '''
@@ -37,7 +34,7 @@ def albedo_band_math(raster):
 
     print("Calculating NDVI...")
     out = np.zeros(raster[0,:,:].shape, dtype=np.float16)
-    out = scale_factor((raster[4,:,:].astype(float)-raster[2,:,:].astype(float))/(raster[4,:,:]+raster[2,:,:]))
+    out = dw.scale_factor((raster[4,:,:].astype(float)-raster[2,:,:].astype(float))/(raster[4,:,:]+raster[2,:,:]))
     print("Done!")
     return out.astype(np.int16)
 
@@ -58,31 +55,6 @@ def albedo_calculator(raster):
     print("Done!")
     return albedo_value
 
-def write_band(raster_GDAL, band, dest_dir, out_fn):
-    '''
-    Returns None. Writes raster band to disk
-
-    Parameters
-    ----------
-    raster: rasterio object 
-    band: Band array to write
-    dest_dir: Destination directory 
-    out_fn: Output filename
-    '''
-
-    print('Writing tif...')
-    driver = gdal.GetDriverByName("GTiff")
-    dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Float32, options=["COMPRESS=LZW"])
-    CopyDatasetInfo(raster_GDAL,dsOut)
-    dsOut.GetRasterBand(1).WriteArray(band)
-    # dsOut.GetRasterBand(1).SetNoDataValue(10001)
-    dsOut.FlushCache()
-
-    dsOut=None
-
-
-    return None
-
 HHA_dir = "E:\\Downloaded_data\\hells_half_acre\\HHA\\Processed_Products\\Forreal_products"
 os.chdir(HHA_dir)
 file_list = os.listdir(HHA_dir)
@@ -90,19 +62,19 @@ file_list = os.listdir(HHA_dir)
 for file in file_list:
     print(file)
     # Read in raster dataset 
-    src_GDAL = data_wrangle.GDAL_read_tiff(file)
+    src_GDAL = dw.GDAL_read_tiff(file)
 
     # Get no data value
-    #nodata = data_wrangle.get_no_data_val(src_GDAL)
+    #nodata = dw.get_no_data_val(src_GDAL)
 
     # Convert GDAL raster dataset to a numpy array
-    src_NP = data_wrangle.GDAL2NP(src_GDAL)
+    src_NP = dw.GDAL2NP(src_GDAL)
 
     # Apply the no data value to the entire numpy array
-    #src = data_wrangle.apply_no_data_val(src_NP, nodata)
+    #src = dw.apply_no_data_val(src_NP, nodata)
 
     Albedo_Temp = albedo_calculator(src_NP)
     print("Done!")
 
-    write_band(src_GDAL, Albedo_Temp, "E:\\Data\\HHA_Calculated_Albedo", "Albedo" +  file ) #define outdirectory
+    dw.write_band(src_GDAL, Albedo_Temp, "E:\\Data\\HHA_Calculated_Albedo", "Albedo" +  file ) #define outdirectory
     print("Albedo Calcualted")

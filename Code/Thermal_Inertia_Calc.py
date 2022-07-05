@@ -6,9 +6,9 @@ import pytz
 from osgeo import gdal
 import matplotlib.pyplot as plt
 
-import data_wrangle 
+import data_wrangle as dw
 
-#data_wrangle.get_dt_obj(dt)
+#dw.get_dt_obj(dt)
 
 '''
 #put this into own function -- Still need to do but awaiting instruction
@@ -20,12 +20,12 @@ import data_wrangle
     flight_dt = datetime.fromisoformat(args.date)
 
     # Get timezone aware datetime object
-    flight_dt_tz_aware = data_wrangle.get_dt_obj(flight_dt, tzone)
+    flight_dt_tz_aware = dw.get_dt_obj(flight_dt, tzone)
 '''
 
-raster_day,raster_GDAL_day,_ = data_wrangle.read_in_raster("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample_clip.tif")
+raster_day,raster_GDAL_day,_ = dw.read_in_raster("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample_clip.tif")
 #we will also be reading in night data here
-raster_night,raster_GDAL_night,_ = data_wrangle.read_in_raster("E:\\Downloaded_data\\needed_files\\night_ortho.tif")
+raster_night,raster_GDAL_night,_ = dw.read_in_raster("E:\\Downloaded_data\\needed_files\\night_ortho.tif")
 
 
 '''pos = plt.imshow(day_temp)
@@ -53,15 +53,15 @@ Tmin = (night_temp +((day_temp - night_temp)*[(np.cos(angular_frequency*t_min)) 
 temp_change = (Tmax - Tmin)
 
 
-albedo,albedo_GDAL,_ = data_wrangle.read_in_raster("E:\\Data\\Georeference_Outputs\\Average.tiff") #different res/size?
+albedo,albedo_GDAL,_ = dw.read_in_raster("E:\\Data\\Georeference_Outputs\\Average.tiff") #different res/size?
 ATI = ((1-albedo)/temp_change)
 
 b = ((np.tan(angular_frequency*t_max))/(1-(np.tan(angular_frequency*t_max))))
 solar_constant = 1367 # W/m**2 for earth        V. M. Fedorov 
 Ct_transmittance = 0.75 # atmospheric transmittance for Earth     scheidt et al  
 flight_dt = datetime.fromisoformat('2022-06-17 13:00:00')# Get timezone aware datetime object
-flight_dt_tz_aware = data_wrangle.get_dt_obj(flight_dt, 'US/Mountain')
-solar_declination = data_wrangle.calc_sol_dec(flight_dt_tz_aware)
+flight_dt_tz_aware = dw.get_dt_obj(flight_dt, 'US/Mountain')
+solar_declination = dw.calc_sol_dec(flight_dt_tz_aware)
 
 
 

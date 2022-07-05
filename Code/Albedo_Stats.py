@@ -1,69 +1,14 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-from osgeo import gdal
-from osgeo.gdalnumeric import CopyDatasetInfo
-import PIL
-from PIL import Image
-import data_wrangle
-
-def write_band(raster_GDAL, band, dest_dir, out_fn):
-    '''
-    Returns None. Writes raster band to disk
-    Parameters
-    ----------
-    raster: rasterio object 
-    band: Band array to write
-    dest_dir: Destination directory 
-    out_fn: Output filename
-    '''
-
-    if band.dtype == 'int16':
-        print('Writing tif...')
-        # band = band.filled(fill_value=10001)
-        
-        driver = gdal.GetDriverByName("GTiff")
-        
-        dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Int16, options=["COMPRESS=LZW"])
-        CopyDatasetInfo(raster_GDAL,dsOut)
-        dsOut.GetRasterBand(1).WriteArray(band)
-        dsOut.GetRasterBand(1).SetNoDataValue(-32767)
-        # dsOut.GetRasterBand(1).SetNoDataValue(np.nan)
-        dsOut.FlushCache()
-    elif band.dtype == 'uint16':
-       
-        band = band.filled(fill_value=65535)
-        print('Writing tif...')
-        driver = gdal.GetDriverByName("GTiff")
-        
-        dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_UInt16, options=["COMPRESS=LZW"])
-        CopyDatasetInfo(raster_GDAL,dsOut)
-        dsOut.GetRasterBand(1).WriteArray(band)
-        dsOut.GetRasterBand(1).SetNoDataValue(65535)
-        dsOut.FlushCache()
-
-    elif band.dtype == "float32":
-        print('Writing tif...')
-        driver = gdal.GetDriverByName("GTiff")
-        
-        dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Float32, options=["COMPRESS=LZW"])
-        CopyDatasetInfo(raster_GDAL,dsOut)
-        dsOut.GetRasterBand(1).WriteArray(band)
-        dsOut.FlushCache()
-
-
-    dsOut=None
-
-
-    return None 
-
+import data_wrangle as dw
 
 '''
-first_file = data_wrangle.GDAL_read_tiff("E:\Data\HHA_Calculated_Albedo\AlbedoS2A_MSIL2A_20190511T181921_N0212_R127_T12TUP_20190511T224452_super_resolved.tif")
-first_raster = data_wrangle.GDAL2NP(first_file)
+first_file = dw.GDAL_read_tiff("E:\Data\HHA_Calculated_Albedo\AlbedoS2A_MSIL2A_20190511T181921_N0212_R127_T12TUP_20190511T224452_super_resolved.tif")
+first_raster = dw.GDAL2NP(first_file)
 
-second_file = data_wrangle.GDAL_read_tiff("E:\Data\HHA_Calculated_Albedo\AlbedoS2A_MSIL2A_20190720T181931_N0213_R127_T12TUP_20190721T001757_super_resolved.tif")
-second_raster = data_wrangle.GDAL2NP(second_file)
+second_file = dw.GDAL_read_tiff("E:\Data\HHA_Calculated_Albedo\AlbedoS2A_MSIL2A_20190720T181931_N0213_R127_T12TUP_20190721T001757_super_resolved.tif")
+second_raster = dw.GDAL2NP(second_file)
 
 print("done")
 
@@ -84,8 +29,8 @@ working_list = os.listdir(working_directory)
 array_list = []
 
 for eachfile in working_list:
-    each_gdal = data_wrangle.GDAL_read_tiff(eachfile)
-    each_raster = data_wrangle.GDAL2NP(each_gdal)
+    each_gdal = dw.GDAL_read_tiff(eachfile)
+    each_raster = dw.GDAL2NP(each_gdal)
 
     # listtoarray_raster = np.array(each_raster)
     array_list.append(each_raster)
@@ -109,4 +54,4 @@ ax.set_title("Standard Deviation, Hell's Half Acre")
 
 plt.show()
 
-write_band(each_gdal, average, "E:\Data\Georeference_Outputs", "Average.tiff" )
+dw.write_band(each_gdal, average, "E:\Data\Georeference_Outputs", "Average.tiff" )
