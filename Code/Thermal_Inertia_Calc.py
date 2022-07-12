@@ -4,6 +4,7 @@ from pysolar import solar
 from datetime import datetime
 import pytz
 from osgeo import gdal
+import operator
 import matplotlib.pyplot as plt
 
 import data_wrangle as dw
@@ -23,10 +24,45 @@ import data_wrangle as dw
     flight_dt_tz_aware = dw.get_dt_obj(flight_dt, tzone)
 '''
 
-raster_day,raster_GDAL_day,_ = dw.read_in_raster("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample_clip.tif")
-#we will also be reading in night data here
-raster_night,raster_GDAL_night,_ = dw.read_in_raster("E:\\Downloaded_data\\needed_files\\night_ortho.tif")
+# retrieve day raster resolution
+src_day = gdal.Open("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample_clip.tif")
+xres_day, yres_day = operator.itemgetter(1,5)(src_day.GetGeoTransform())
+# xres = 0.24024252350136913
+# yres = -0.24025361345508592
+# _: 65535
+print("done")
 
+# retrieve night raster resoltion
+src_night = gdal.Open("E:\\Downloaded_data\\needed_files\\night_ortho.tif")
+xres_night, yres_night = operator.itemgetter(1,5)(src_night.GetGeoTransform())
+# xres_night = 0.83713
+# yres_night = -0.83713
+# Night seems to  be the coarser raster, so I'll be using that one to resample the albedo
+print("done2")
+
+# resample albedo to be night's resolution
+night_raster_infn = "E:\\Downloaded_data\\needed_files\\night_ortho.tif"
+albedo_raster_outfn = "E:\\Data\\Georeference_Outputs\\Average.tiff"
+
+xres= 0.83713
+yres= -0.83713
+resample_alg = 'near'
+
+ds = gdal.Warp(albedo_raster_outfn, night_raster_infn, warpOptions=dict(xRes=xres, yRes=yres, resampleAlg=resample_alg))
+ds = None
+print("done3")
+
+# check to see if albedo has been properly resampled
+src_albedo = gdal.Open("E:\\Data\\Georeference_Outputs\\Average.tiff")
+xres_albedo, yres_albedo = operator.itemgetter(1,5)(src_albedo.GetGeoTransform())
+# xres_albedo = 0.8371300000001297
+# yres_albedo = -0.8371300000001297
+print("done4")
+
+
+raster_day,raster_GDAL_day,_ = dw.read_in_raster("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample_clip.tif")
+raster_night,raster_GDAL_night,_ = dw.read_in_raster("E:\\Downloaded_data\\needed_files\\night_ortho.tif")
+# no data error made it so that this portion of code will not run properly, but I don't think we need it to get the resolution
 
 '''pos = plt.imshow(day_temp)
 plt.colorbar(pos)
