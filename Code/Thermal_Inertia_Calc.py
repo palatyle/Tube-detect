@@ -29,7 +29,6 @@ src_day = gdal.Open("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample
 xres_day, yres_day = operator.itemgetter(1,5)(src_day.GetGeoTransform())
 # xres = 0.24024252350136913
 # yres = -0.24025361345508592
-# _: 65535
 print("done")
 
 # retrieve night raster resoltion
@@ -37,26 +36,27 @@ src_night = gdal.Open("E:\\Downloaded_data\\needed_files\\night_ortho.tif")
 xres_night, yres_night = operator.itemgetter(1,5)(src_night.GetGeoTransform())
 # xres_night = 0.83713
 # yres_night = -0.83713
+# _: 65535
 # Night seems to  be the coarser raster, so I'll be using that one to resample the albedo
 print("done2")
 
 # resample albedo to be night's resolution
-night_raster_infn = "E:\\Downloaded_data\\needed_files\\night_ortho.tif"
-albedo_raster_outfn = "E:\\Data\\Georeference_Outputs\\Average.tiff"
+albedo_raster_infn = "E:\\Data\\Georeference_Outputs\\Average.tiff"
+albedo_raster_outfn = "E:\\Data\\Georeference_Outputs\\Average_Resample.tiff"
 
-xres= 0.83713
-yres= -0.83713
+xres= xres_night
+yres= yres_night
 resample_alg = 'near'
-
-ds = gdal.Warp(albedo_raster_outfn, night_raster_infn, warpOptions=dict(xRes=xres, yRes=yres, resampleAlg=resample_alg))
+albedo_ds = gdal.Open(albedo_raster_infn)
+ds = gdal.Warp(albedo_raster_outfn, albedo_ds, xRes=xres, yRes=yres, resampleAlg=resample_alg)
 ds = None
 print("done3")
 
 # check to see if albedo has been properly resampled
-src_albedo = gdal.Open("E:\\Data\\Georeference_Outputs\\Average.tiff")
+src_albedo = gdal.Open("E:\\Data\\Georeference_Outputs\\Average_Resample.tiff")
 xres_albedo, yres_albedo = operator.itemgetter(1,5)(src_albedo.GetGeoTransform())
-# xres_albedo = 0.8371300000001297
-# yres_albedo = -0.8371300000001297
+# xres_albedo = 0.8371300000001765
+# yres_albedo = -0.8371300000001765
 print("done4")
 
 
@@ -89,7 +89,7 @@ Tmin = (night_temp +((day_temp - night_temp)*[(np.cos(angular_frequency*t_min)) 
 temp_change = (Tmax - Tmin)
 
 
-albedo,albedo_GDAL,_ = dw.read_in_raster("E:\\Data\\Georeference_Outputs\\Average.tiff") #different res/size?
+albedo,albedo_GDAL,_ = dw.read_in_raster("E:\\Data\\Georeference_Outputs\\Average.tiff")
 ATI = ((1-albedo)/temp_change)
 
 b = ((np.tan(angular_frequency*t_max))/(1-(np.tan(angular_frequency*t_max))))
@@ -105,7 +105,7 @@ phase_diff_1 = (np.arctan(b/(1+b)))     #scheidt et al
 phase_diff_2 = (np.arctan((b*np.sqrt(2))/(1+(b*np.sqrt(2)))))   #scheidt et al
 
 latitude = 43.4956
-xi_constant = (np.arccos(np.tan(solar_declination)*np.tan(np.deg2rad(latitude))))    #call deg2rad around all latitudes!
+xi_constant = (np.arccos(np.tan(solar_declination)*np.tan(np.deg2rad(latitude)))) 
 
 
 A1_fourier = (((2/np.pi)*(np.sin(solar_declination)*(np.sin(np.deg2rad(latitude))))) + (
