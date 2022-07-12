@@ -54,4 +54,4 @@ ax.set_title("Standard Deviation, Hell's Half Acre")
 
 plt.show()
 
-dw.write_band(each_gdal, average, "E:\Data\Georeference_Outputs", "Average.tiff" )
+dw.write_band(each_gdal, average, "E:\Data\Georeference_Outputs", "Average.tiff", None )
