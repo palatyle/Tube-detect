@@ -59,17 +59,18 @@ xres_albedo, yres_albedo = operator.itemgetter(1,5)(src_albedo.GetGeoTransform()
 # yres_albedo = -0.8371300000001765
 print("done4")
 
-
 raster_day,raster_GDAL_day,_ = dw.read_in_raster("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample_clip.tif")
 raster_night,raster_GDAL_night,_ = dw.read_in_raster("E:\\Downloaded_data\\needed_files\\night_ortho.tif")
 # no data error made it so that this portion of code will not run properly, but I don't think we need it to get the resolution
+# Change these!!
+
+
 
 '''pos = plt.imshow(day_temp)
 plt.colorbar(pos)
 plt.show()
 print("wow!")
 '''
-
 
 angular_frequency = 7.27*10**(-5) # rad/sec                maltese et al
 day_sat_time = 3960000 # 1100*60*60         Scheidt et al
