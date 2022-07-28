@@ -23,12 +23,12 @@ import data_wrangle as dw
     # Get timezone aware datetime object
     flight_dt_tz_aware = dw.get_dt_obj(flight_dt, tzone)
 '''
-
+'''
 # retrieve day raster resolution
 src_day = gdal.Open("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample_clip.tif")
 xres_day, yres_day = operator.itemgetter(1,5)(src_day.GetGeoTransform())
-# xres = 0.24024252350136913
-# yres = -0.24025361345508592
+# xres_day = 0.24024252350136913
+# yres_day = -0.24025361345508592
 print("done")
 
 # retrieve night raster resoltion
@@ -39,6 +39,11 @@ xres_night, yres_night = operator.itemgetter(1,5)(src_night.GetGeoTransform())
 # _: 65535
 # Night seems to  be the coarser raster, so I'll be using that one to resample the albedo
 print("done2")
+
+src_night = gdal.Open("E:\\Data\\Georeference_Outputs\\near.tiff")
+xres_near, yres_near = operator.itemgetter(1,5)(src_night.GetGeoTransform())
+print("done2.5")
+
 
 # resample albedo to be night's resolution
 albedo_raster_infn = "E:\\Data\\Georeference_Outputs\\Average.tiff"
@@ -58,11 +63,13 @@ xres_albedo, yres_albedo = operator.itemgetter(1,5)(src_albedo.GetGeoTransform()
 # xres_albedo = 0.8371300000001765
 # yres_albedo = -0.8371300000001765
 print("done4")
+'''
 
-raster_day,raster_GDAL_day,_ = dw.read_in_raster("E:\\Downloaded_data\\needed_files\\day_ortho_16bit_resample_clip.tif")
-raster_night,raster_GDAL_night,_ = dw.read_in_raster("E:\\Downloaded_data\\needed_files\\night_ortho.tif")
-# no data error made it so that this portion of code will not run properly, but I don't think we need it to get the resolution
-# Change these!!
+
+
+raster_day,raster_GDAL_day,_ = dw.read_in_raster("E:\\Data\\Georeference_Outputs\\Day_Clip.tif")
+raster_night,raster_GDAL_night,_ = dw.read_in_raster("E:\\Data\\Georeference_Outputs\\Night_Clip.tif")
+
 
 
 
@@ -76,7 +83,7 @@ angular_frequency = 7.27*10**(-5) # rad/sec                maltese et al
 day_sat_time = 3960000 # 1100*60*60         Scheidt et al
 night_sat_time = 7956000 # 2210*60*60       Scheidt et al
 day_temp = raster_day[5,:,:]
-night_temp = raster_night
+night_temp = raster_night[0,:,:]
 t_max = 5040000 # 1400*60*60 -> hours to seconds conversion      scheidt et al
 t_min = 720000 # 0200*60*60 -> hours to seconds conversion       scheidt et al
 
@@ -90,7 +97,7 @@ Tmin = (night_temp +((day_temp - night_temp)*[(np.cos(angular_frequency*t_min)) 
 temp_change = (Tmax - Tmin)
 
 
-albedo,albedo_GDAL,_ = dw.read_in_raster("E:\\Data\\Georeference_Outputs\\Average.tiff")
+albedo,albedo_GDAL,_ = dw.read_in_raster("E:\\Data\\Georeference_Outputs\\Near_Clip.tif")
 ATI = ((1-albedo)/temp_change)
 
 b = ((np.tan(angular_frequency*t_max))/(1-(np.tan(angular_frequency*t_max))))
@@ -98,7 +105,7 @@ solar_constant = 1367 # W/m**2 for earth        V. M. Fedorov
 Ct_transmittance = 0.75 # atmospheric transmittance for Earth     scheidt et al  
 flight_dt = datetime.fromisoformat('2022-06-17 13:00:00')# Get timezone aware datetime object
 flight_dt_tz_aware = dw.get_dt_obj(flight_dt, 'US/Mountain')
-solar_declination = dw.calc_sol_dec(flight_dt_tz_aware)
+solar_declination = np.deg2rad(dw.calc_sol_dec(flight_dt_tz_aware))
 
 
 
@@ -110,15 +117,23 @@ xi_constant = (np.arccos(np.tan(solar_declination)*np.tan(np.deg2rad(latitude)))
 
 
 A1_fourier = (((2/np.pi)*(np.sin(solar_declination)*(np.sin(np.deg2rad(latitude))))) + (
-    (1/2*np.pi)*(np.cos(solar_declination)*(np.cos(np.deg2rad(latitude))))) * ([np.sin(2*xi_constant) + (2*xi_constant)]))
+    (1/2*np.pi)*(np.cos(solar_declination)*(np.cos(np.deg2rad(latitude))))) * ((np.sin(2*xi_constant) + (2*xi_constant))))
 
 
 A2_fourier = ((((2*np.sin(solar_declination)*(np.sin(np.deg2rad(latitude))))/(2*np.pi))*(np.sin(2*xi_constant))) + (
-    (2*np.cos(solar_declination)*(np.cos(np.deg2rad(latitude)))/(np.pi*(2**2 - 1)))*[(2*(np.sin(2*xi_constant))*(np.cos(xi_constant))) - 
-    ((np.cos(2*xi_constant))*(np.sin(xi_constant)))]))
+    (2*np.cos(solar_declination)*(np.cos(np.deg2rad(latitude)))/(np.pi*(2**2 - 1)))*((2*(np.sin(2*xi_constant))*(np.cos(xi_constant))) - 
+    ((np.cos(2*xi_constant))*(np.sin(xi_constant))))))
 
 thermal_inertia = ((ATI*((solar_constant*Ct_transmittance)/np.sqrt(angular_frequency)))*(
     ((A1_fourier*((np.cos((angular_frequency*night_sat_time)-phase_diff_1))-(np.cos((angular_frequency*day_sat_time)-phase_diff_1))))/
     (np.sqrt(1+(1/b)+(1/(2*b**2))))) +
     ((A2_fourier+((np.cos((angular_frequency*night_sat_time)-phase_diff_2))-(np.cos((angular_frequency*day_sat_time)-phase_diff_2))))/
     (np.sqrt(2+(np.sqrt(2)/b)+(1/(2*b**2)))))))
+
+
+
+
+pos = plt.imshow(thermal_inertia)
+plt.colorbar(pos)
+plt.show()
+print("wow!")
