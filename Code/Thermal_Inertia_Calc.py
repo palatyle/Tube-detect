@@ -137,3 +137,9 @@ pos = plt.imshow(thermal_inertia)
 plt.colorbar(pos)
 plt.show()
 print("wow!")
+
+
+#converting array to tiff file
+
+dw.write_band(albedo_GDAL, thermal_inertia, "E:\Data\Georeference_Outputs", "thermal_inertia.tiff", None)
+print("done")
