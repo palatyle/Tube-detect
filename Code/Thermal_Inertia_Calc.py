@@ -67,10 +67,8 @@ print("done4")
 
 
 
-raster_day,raster_GDAL_day,_ = dw.read_in_raster("E:\\Data\\Georeference_Outputs\\Day_Clip.tif")
+raster_day,raster_GDAL_day,_= dw.read_in_raster("E:\\Data\\Georeference_Outputs\\Day_Clip.tif")
 raster_night,raster_GDAL_night,_ = dw.read_in_raster("E:\\Data\\Georeference_Outputs\\Night_Clip.tif")
-
-
 
 
 '''pos = plt.imshow(day_temp)
@@ -86,6 +84,7 @@ day_temp = raster_day[5,:,:]
 night_temp = raster_night[0,:,:]
 t_max = 5040000 # 1400*60*60 -> hours to seconds conversion      scheidt et al
 t_min = 720000 # 0200*60*60 -> hours to seconds conversion       scheidt et al
+
 
 Tmax = (day_temp +((day_temp - night_temp)*[(np.cos(angular_frequency*t_max)) -
 (np.cos(angular_frequency*day_sat_time))])/((np.cos(angular_frequency*day_sat_time)) -(np.cos(angular_frequency*night_sat_time))))
@@ -141,5 +140,5 @@ print("wow!")
 
 #converting array to tiff file
 
-dw.write_band(albedo_GDAL, thermal_inertia, "E:\Data\Georeference_Outputs", "thermal_inertia.tiff", None)
+dw.write_band(albedo_GDAL, thermal_inertia, "E:\\Data\\Georeference_Outputs", "thermal_inertia.tiff", None)
 print("done")
