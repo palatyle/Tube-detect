@@ -63,6 +63,9 @@ def get_solar_azi_alt(dt,lat,lon):
     alt: altitude of sun from tangential plane of Earth's surface at lat,lon coords 0-90 [deg]
     azi: azimuth of sun from north. 0 to 360 [deg]
     '''
+    if type(lat) == str:
+        lat = float(lat)
+        lon = float(lon)
     azi = solar.get_azimuth(lat,lon,dt)
     alt = solar.get_altitude(lat,lon,dt)
     return alt, azi
@@ -446,6 +449,7 @@ def numpy2CSV(arr, dir, fn ,nodata):
 
     arr_reshape = arr.reshape(arr.size)
     arr_no_mask = arr_reshape[arr_reshape != nodata]
+    # arr_no_mask = arr_reshape
     # arr_no_mask = arr_reshape.compressed()
     print("writing csv...")
     np.savetxt(os.path.join(dir, fn)+'.csv',arr_no_mask,fmt='%i',delimiter=',')
@@ -457,6 +461,7 @@ def numpy2CSV_float(arr, dir, fn ,nodata):
 
     arr_reshape = arr.reshape(arr.size)
     arr_no_mask = arr_reshape[arr_reshape != nodata]
+    # arr_no_mask = arr_reshape
     # arr_no_mask = arr_reshape.compressed()
     print("writing csv...")
     np.savetxt(os.path.join(dir, fn)+'.csv',arr_no_mask,fmt='%f',delimiter=',')
@@ -655,7 +660,7 @@ if args.hillshade:
     s_alt,s_azi = get_solar_azi_alt(flight_dt_tz_aware,tube_lat,tube_lon)
 
  
-    sol_dec = calc_sol_dec(flight_dt_tz_aware)
+    # sol_dec = calc_sol_dec(flight_dt_tz_aware)
     
     # Calculate and write hillshade from DEM. Solar azimuth and altitude calculated from position of tube and time of flight. 
     calc_hillshade(DEM, d_dir, s_azi, s_alt, args)
