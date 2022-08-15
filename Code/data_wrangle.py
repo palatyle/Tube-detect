@@ -8,7 +8,7 @@ import argparse
 from osgeo import gdal
 from osgeo.gdalnumeric import CopyDatasetInfo, BandWriteArray
 import time
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 start_time = time.time()
 
@@ -448,8 +448,8 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
 def numpy2CSV(arr, dir, fn ,nodata):
 
     arr_reshape = arr.reshape(arr.size)
-    arr_no_mask = arr_reshape[arr_reshape != nodata]
-    # arr_no_mask = arr_reshape
+    # arr_no_mask = arr_reshape[arr_reshape != nodata]
+    arr_no_mask = arr_reshape
     # arr_no_mask = arr_reshape.compressed()
     print("writing csv...")
     np.savetxt(os.path.join(dir, fn)+'.csv',arr_no_mask,fmt='%i',delimiter=',')
@@ -460,8 +460,8 @@ def numpy2CSV(arr, dir, fn ,nodata):
 def numpy2CSV_float(arr, dir, fn ,nodata):
 
     arr_reshape = arr.reshape(arr.size)
-    arr_no_mask = arr_reshape[arr_reshape != nodata]
-    # arr_no_mask = arr_reshape
+    # arr_no_mask = arr_reshape[arr_reshape != nodata]
+    arr_no_mask = arr_reshape
     # arr_no_mask = arr_reshape.compressed()
     print("writing csv...")
     np.savetxt(os.path.join(dir, fn)+'.csv',arr_no_mask,fmt='%f',delimiter=',')
