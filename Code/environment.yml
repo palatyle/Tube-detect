@@ -1,0 +1,10 @@
+name: lava_tubes
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.7
+  - matplotlib
+  - gdal
+  - seaborn
+prefix: /Users/tylerpaladino/opt/anaconda3/envs/lava_tubes
