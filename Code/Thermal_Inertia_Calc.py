@@ -41,199 +41,203 @@ flight_dt_tz_aware = dw.get_dt_obj(flight_dt, 'US/Mountain')
 
 
 def calc_max_temp(d_temp, n_temp, max_t_time, d_sat_time, ang_freq, n_sat_time):
-    """Calculates maximum temperature based on given variables.
+    """Calculates maximum temperature in diurnal cycle based on given variables.
 
     Args:
         d_temp (arr): daytime temperature
-        n_temp (arr): _description_
-        max_t_time (int): _description_
-        d_sat_time (int): _description_
-        ang_freq (float): _description_
-        n_sat_time (int): _description_
+        n_temp (arr): nighttime temperature
+        max_t_time (int): time of maximum temperature
+        d_sat_time (int): time of satellite overpass day
+        ang_freq (float): rotational angular frequency of earth
+        n_sat_time (int): time of satellite overpass night
+
+    Returns:
+        max_temp (masked_array) : maximum temperature
     """    
     max_temp = (d_temp +((d_temp - n_temp)*((np.cos(ang_freq*max_t_time)) -
     (np.cos(ang_freq*d_sat_time))))/((np.cos(ang_freq*d_sat_time)) -(np.cos(ang_freq*n_sat_time))))
     return max_temp
-max_Temperature = calc_max_temp(day_temp, night_temp, max_temp_time, day_satellite_overpass_time, angular_frequency,night_satellite_overpass_time)
 
 
 def calc_min_temp(n_temp, d_temp, ang_freq, min_t_time, n_sat_time, d_sat_time):
-    """_summary_
+    """Calculates minimum temperature in diurnal cycle based on given variables.
 
     Args:
-        n_temp (arr): _description_
-        d_temp (arr): _description_
-        ang_freq (float): _description_
-        min_t_time (int): _description_
-        n_sat_time (int): _description_
-        d_sat_time (int)): _description_
+        n_temp (arr): nighttime temperature
+        d_temp (arr): daytime temperature
+        ang_freq (float): rotational angular frequency of earth
+        min_t_time (int): time of minimum temperature
+        n_sat_time (int): time of satellite overpass night
+        d_sat_time (int): time of satellite overpass day
+
+    Returns:
+        min_temp (masked_array) : minimum temperature
     """    
     min_temp = (n_temp +((d_temp - n_temp)*((np.cos(ang_freq*min_t_time)) -
     (np.cos(ang_freq*n_sat_time))))/((np.cos(ang_freq*d_sat_time))-(np.cos(ang_freq*n_sat_time))))
     return min_temp
-min_Temperature = calc_min_temp(night_temp,day_temp,angular_frequency,min_temp_time,night_satellite_overpass_time,day_satellite_overpass_time)
 
 
 def calc_temp_range(max_T, min_T):
-    """_summary_
+    """Calculates the temperature range over a dirunal cycle.
 
     Args:
-        max_T (_type_): _description_
-        min_T (_type_): _description_
+        max_T (masked_array): Maximum temperature
+        min_T (masked_array): Minimum Temperature
 
     Returns:
-        _type_: _description_
+        t_range (masked_array): range of temperatures
     """
     t_range = (max_T - min_T)
     return t_range
-temp_range = calc_temp_range(max_Temperature, min_Temperature)
 
 
 def calc_temp_ratio(max_T, min_T):
-    """_summary_
+    """Calculates a temperature ratio over a diurnal cycle.
 
     Args:
-        max_T (_type_): _description_
-        min_T (_type_): _description_
+        max_T (masked_array): Maximum Temperature
+        min_T (masked_array): Minimum Temperature
 
     Returns:
-        _type_: _description_
+        t_ratio (masked_array) : ratio of temperatures
     """    
     t_ratio = (max_T / min_T)
     return t_ratio
-temp_ratio = calc_temp_ratio(max_Temperature, min_Temperature)
 
 
 def calc_ATI(alb, t_range):
-    """_summary_
+    """Calculates Apparent Thermal Inertia over a diurnal cycle.
 
     Args:
-        alb (_type_): _description_
-        t_range (_type_): _description_
+        alb (masked_array): Previously calculated albedo for study area
+        t_range (masked_array): range of temperatures 
 
     Returns:
-        _type_: _description_
+        ATI (masked_array): Apparent Thermal Inertia for study area
     """    
     ATI = ((1-alb)/t_range)
     return ATI
-apparent_thermal_inertia = calc_ATI(albedo, temp_range)
 
 
 def calc_b(ang_freq, max_t_time):
-    """_summary_
+    """Calculates the b parameter.
 
     Args:
-        ang_freq (_type_): _description_
-        max_t_time (_type_): _description_
+        ang_freq (float): rotational angular frequency of earth
+        max_t_time (int): time of maximum temperature
 
     Returns:
-        _type_: _description_
+        b_var (float): b parameter
     """    
     b_var = ((np.tan(ang_freq*max_t_time))/(1-(np.tan(ang_freq*max_t_time))))
     return b_var
-b = calc_b(angular_frequency,max_temp_time)
 
 
 def calc_solar_dec(flight_dt_tz):
-    """_summary_
+    """Calculates Solar Declination based on given variable.
 
     Args:
-        flight_dt_tz (_type_): _description_
+        flight_dt_tz (dt): timezone aware date time object
 
     Returns:
-        _type_: _description_
+        solar_dec (float): solar declination
     """    
     solar_dec = np.deg2rad(dw.calc_sol_dec(flight_dt_tz))
     return solar_dec 
-solar_declination = calc_solar_dec(flight_dt_tz_aware)
 
 
 def calc_pd_1(b_var):
-    """_summary_  scheidt et al
+    """Calculates the first phase difference variable. Scheidt et al.
 
     Args:
-        b_var (_type_): _description_
+        b_var (float): b variable
 
     Returns:
-        _type_: _description_
+        pd_1 (float): phase difference 1
     """    
     pd_1 = (np.arctan(b_var/(1+b_var)))  
     return pd_1
-phase_diff_1 = calc_pd_1(b)
+
 
 def calc_pd_2(b_var):
-    """_summary_ scheidt et al
+    """Calculates the second phase difference variable. Scheidt et al.
 
     Args:
-        b_var (_type_): _description_
+        b_var (float): b variable
 
     Returns:
-        _type_: _description_
+        pd_2 (float): phase difference 2
     """    
     pd_2 = (np.arctan((b_var*np.sqrt(2))/(1+(b_var*np.sqrt(2)))))  
     return pd_2
-phase_diff_2 = calc_pd_2(b)
 
 
 def calc_xi(solar_dec, lat):
+    """Calculates the xi constant based on given variables.
+
+    Args:
+        solar_dec (float): solar declination
+        lat (float): latitude of study area
+
+    Returns:
+        xi (float) : xi constant
+    """    
     xi = (np.arccos(np.tan(solar_dec)*np.tan(np.deg2rad(lat)))) 
     return xi
-xi_constant = calc_xi(solar_declination, latitude)
 
 
 def calc_A1(solar_dec, lat, xi):
-    """_summary_
+    """Calculates the A1 Fourier coefficient based on given variables.
 
     Args:
-        solar_dec (_type_): _description_
-        lat (_type_): _description_
-        xi (_type_): _description_
+        solar_dec (float): solar declination
+        lat (float): latitude of study area
+        xi (float): xi constant
 
     Returns:
-        _type_: _description_
+        A1 (float) : A1 fourier coefficient
     """    
     A1 = (((2/np.pi)*(np.sin(solar_dec)*(np.sin(np.deg2rad(lat))))) +
      ((1/2*np.pi)*(np.cos(solar_dec)*(np.cos(np.deg2rad(lat))))) * ((np.sin(2*xi) + (2*xi))))
     return A1
-A1_fourier = calc_A1(solar_declination, latitude, xi_constant)
 
 
 def calc_A2(solar_dec, lat, xi,):
-    """_summary_
+    """Calculates the A2 Fourier coefficient based on given variables.
 
     Args:
-        solar_dec (_type_): _description_
-        lat (_type_): _description_
-        xi (_type_): _description_
+        solar_dec (float): solar declination
+        lat (float): latitude of study area
+        xi (float): xi constant
 
     Returns:
-        _type_: _description_
+        A2 (float) : A2 Fourier coefficient
     """    
     A2 = ((((2*np.sin(solar_dec)*(np.sin(np.deg2rad(lat))))/(2*np.pi))*(np.sin(2*xi))) + (
     (2*np.cos(solar_dec)*(np.cos(np.deg2rad(lat)))/(np.pi*(2**2 - 1)))*((2*(np.sin(2*xi))*(np.cos(xi))) - 
     ((np.cos(2*xi))*(np.sin(xi))))))
     return A2
-A2_fourier = calc_A2(solar_declination, latitude, xi_constant)
 
 
 def calc_TI(ATI, sol_const, Ct, ang_freq, A1, night_sat_time, pd1,day_sat_time,b_var, A2, pd2,):
-    """_summary_
+    """Calculates thermal inertia based on given variables.
 
     Args:
-        ATI (_type_): _description_
-        sol_const (_type_): _description_
-        Ct (_type_): _description_
-        ang_freq (_type_): _description_
-        A1 (_type_): _description_
-        night_sat_time (_type_): _description_
-        pd1 (_type_): _description_
-        day_sat_time (_type_): _description_
-        b_var (_type_): _description_
-        A2 (_type_): _description_
-        pd2 (_type_): _description_
+        ATI (arr): ATI for study area
+        sol_const (int): solar constant for Earth
+        Ct (int): CT Transmittance for Earth
+        ang_freq (float): rotational angular frequency of Earth
+        A1 (float): A1 fourier coefficient
+        night_sat_time (int): time of satellite overpass night
+        pd1 (float): phase difference 1
+        day_sat_time (int): time of satellite overpass day
+        b_var (float): b variable
+        A2 (float): A2 fourier coefficient
+        pd2 (float): phase difference 2
 
     Returns:
-        _type_: _description_
+        arr : Thermal Inertia for study area
     """    
     TI = ((ATI*((sol_const*Ct)/np.sqrt(ang_freq)))*(
     ((A1*((np.cos((ang_freq*night_sat_time)-pd1))-(np.cos((ang_freq*day_sat_time)-pd1))))/
@@ -241,8 +245,23 @@ def calc_TI(ATI, sol_const, Ct, ang_freq, A1, night_sat_time, pd1,day_sat_time,b
     ((A2+((np.cos((ang_freq*night_sat_time)-pd2))-(np.cos((ang_freq*day_sat_time)-pd2))))/
     (np.sqrt(2+(np.sqrt(2)/b_var)+(1/(2*b_var**2)))))))
     return TI
+
+max_Temperature = calc_max_temp(day_temp, night_temp, max_temp_time, day_satellite_overpass_time, angular_frequency,night_satellite_overpass_time)
+min_Temperature = calc_min_temp(night_temp,day_temp,angular_frequency,min_temp_time,night_satellite_overpass_time,day_satellite_overpass_time)
+temp_range = calc_temp_range(max_Temperature, min_Temperature)
+temp_ratio = calc_temp_ratio(max_Temperature, min_Temperature)
+apparent_thermal_inertia = calc_ATI(albedo, temp_range)
+b = calc_b(angular_frequency,max_temp_time)
+solar_declination = calc_solar_dec(flight_dt_tz_aware)
+phase_diff_1 = calc_pd_1(b)
+phase_diff_2 = calc_pd_2(b)
+xi_constant = calc_xi(solar_declination, latitude)
+A1_fourier = calc_A1(solar_declination, latitude, xi_constant)
+A2_fourier = calc_A2(solar_declination, latitude, xi_constant)
 thermal_inertia =calc_TI(apparent_thermal_inertia, solar_constant, Ct_transmittance,angular_frequency, A1_fourier,
  night_satellite_overpass_time, phase_diff_1, day_satellite_overpass_time, b, A2_fourier, phase_diff_2)
+
+
 
 pos = plt.imshow(thermal_inertia)
 plt.colorbar(pos)
