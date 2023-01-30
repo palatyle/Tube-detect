@@ -14,6 +14,7 @@ start_time = time.time()
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--NDVI",help="Calculate and output NDVI", action="store_true")
+parser.add_argument("--NDVI_filter",help="Filter thermal data by NDVI", action="store_true")
 parser.add_argument("--NDWI",help="Calculate and output NDWI", action="store_true")
 parser.add_argument("--MSAVI2",help="Calculate and output MSAVI2", action="store_true")
 parser.add_argument("--thermal",help="Export thermal band", action="store_true")
@@ -250,7 +251,7 @@ def band_math(raster, index):
         out = np.zeros(raster[0,:,:].shape, dtype=np.float16)
         a = (raster[4,:,:].astype(float)-raster[2,:,:].astype(float)).filled(fill_value=np.nan)
         b = (raster[4,:,:].astype(float)+raster[2,:,:].astype(float)).filled(fill_value=np.nan)
-        out = scale_factor(np.divide(a,b,where=b!=0))
+        out = np.divide(a,b,where=b!=0)
         # out = scale_factor((raster[4,:,:].astype(float)-raster[2,:,:].astype(float))/(raster[4,:,:].astype(float)+raster[2,:,:].astype(float)))
         print("Done!")
     elif index == 'NDWI' or index == 'ndwi':
@@ -270,7 +271,7 @@ def band_math(raster, index):
         out[out < -1] = -1
         out = out.filled(fill_value=np.nan)
         print("Done!")
-    return np.nan_to_num(out,nan=-32767.0).astype(np.int16)
+    return out
 #out.astype(np.int16)
 #.filled(fill_value=32767.0).astype(np.int16)
 
@@ -360,6 +361,8 @@ def get_no_data_val(ds):
     dummy_band = ds.GetRasterBand(1)
     no_data = dummy_band.GetNoDataValue()
 
+    if no_data == None:
+        no_data = 0
     # Return no data value rounded to nearest integer value
     return round(no_data)
 
@@ -397,6 +400,7 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
             numpy2CSV(band,dest_dir,out_fn,-32767)
         print('Writing tif...')
         # band = band.filled(fill_value=10001)
+        np.nan_to_num(band,nan=-32767)
         
         driver = gdal.GetDriverByName("GTiff")
         
@@ -409,16 +413,31 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
         
     elif band.dtype == 'uint16':
        
-        band = band.filled(fill_value=65535)
+        band = band.filled(fill_value=65536)
         if arg.CSV:
-            numpy2CSV(band,dest_dir,out_fn,65535)
+            numpy2CSV(band,dest_dir,out_fn,65536)
         print('Writing tif...')
         driver = gdal.GetDriverByName("GTiff")
+        np.nan_to_num(band,nan=65536)
         
         dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_UInt16, options=["COMPRESS=LZW"])
         CopyDatasetInfo(raster_GDAL,dsOut)
         dsOut.GetRasterBand(1).WriteArray(band)
-        dsOut.GetRasterBand(1).SetNoDataValue(65535)
+        dsOut.GetRasterBand(1).SetNoDataValue(65536)
+        dsOut.FlushCache()
+    
+    elif band.dtype == 'uint32':
+        band = band.filled(fill_value=65536)
+        if arg.CSV:
+            numpy2CSV(band,dest_dir,out_fn,65536)
+        print('Writing tif...')
+        driver = gdal.GetDriverByName("GTiff")
+        np.nan_to_num(band,nan=65536)
+        
+        dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_UInt32, options=["COMPRESS=LZW"])
+        CopyDatasetInfo(raster_GDAL,dsOut)
+        dsOut.GetRasterBand(1).WriteArray(band)
+        dsOut.GetRasterBand(1).SetNoDataValue(65536)
         dsOut.FlushCache()
 
     elif band.dtype == "float32":
@@ -433,7 +452,8 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
     elif band.dtype == "float64":
         print('Writing tif...')
         driver = gdal.GetDriverByName("GTiff")
-        
+        np.nan_to_num(band,nan=3.4e+38)
+
         dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Float64, options=["COMPRESS=LZW"])
         CopyDatasetInfo(raster_GDAL,dsOut)
         dsOut.GetRasterBand(1).WriteArray(band)
@@ -562,6 +582,10 @@ def tif2csv(fn,fn_out,dest):
         print('Convert to csv...')
         numpy2CSV(np_ras.filled(nodat),dest,fn_out,float(nodat))
 
+def NDVI_filter(band_to_filter,NDVI,nodata):
+    band_to_filter[NDVI>0.1] = nodata
+    return band_to_filter
+
 def read_in_raster(fn):
     '''
     
@@ -578,9 +602,10 @@ def read_in_raster(fn):
 
     # Apply the no data value to the entire numpy arr
     src = apply_no_data_val(src_NP, nodata)
-
+    # src = src_NP
     # Free up some memory
     src_NP = None
+    # nodata = None
 
     return src, src_GDAL, nodata
 
@@ -604,7 +629,7 @@ if args.NDVI or args.NDWI or args.MSAVI2 or args.thermal:
         NDVI = band_math(raster, 'NDVI')
         # Write NDVI data to disk
         write_band(raster_GDAL,NDVI,d_dir,'NDVI.tif',args)
-        NDVI = None
+        # NDVI = None
     if args.MSAVI2:
         # Use band math to calculate MSAVI2
         MSAVI2 = band_math(raster, 'MSAVI2')
@@ -618,7 +643,11 @@ if args.NDVI or args.NDWI or args.MSAVI2 or args.thermal:
         write_band(raster_GDAL,NDWI,d_dir,'NDWI.tif',args)
         NDWI = None
     if args.thermal:
-        write_band(raster_GDAL,raster[-1,:,:],d_dir,'thermal.tif',args)
+        if args.NDVI_filter:
+            thermal_filtered = NDVI_filter(raster[-1,:,:],NDVI,nodat)
+            write_band(raster_GDAL,thermal_filtered,d_dir,'thermal.tif',args)
+        else:
+            write_band(raster_GDAL,raster[-1,:,:],d_dir,'thermal.tif',args)
 
 if args.slope:
     if args.DEM_dir == None:

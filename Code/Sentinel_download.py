@@ -25,10 +25,10 @@ def Sentinel_download(filename, directory):
     
     
     
-    years = ["2019", "2020", "2021"]
+    years = ["2022"]
     for x in years:
         start_date = x + "05" + "01"
-        end_date = x + "07" + "31"
+        end_date = x + "08" + "15"
         products = api.query(footprint,
                              date=(start_date, end_date),
                              platformname='Sentinel-2',
@@ -40,11 +40,11 @@ def Sentinel_download(filename, directory):
         api.download_all(products)
     return None 
 
-direct = "C:\\Users\\***REMOVED***\\Documents\\ArcGIS\\Projects\\Tubez\\HHA"
-fn = "C:/Users/***REMOVED***/Documents/ArcGIS/Projects/Tubez/Hell.geojson.json"
+out = "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\Sentinel_dl"
+fn = "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\Sentinel_poly.geojson"
 
 
-Sentinel_download(fn,  direct)
+Sentinel_download(fn,  out)
 
 
 

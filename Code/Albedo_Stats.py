@@ -23,7 +23,7 @@ print("nice")
 
 
 
-working_directory = "E:\Data\HHA_Calculated_Albedo"
+working_directory = "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\Albedo_calc"
 os.chdir(working_directory)
 working_list = os.listdir(working_directory)
 array_list = []
@@ -45,13 +45,20 @@ average = np.average(full_stack, axis = 0)
 std_dev = np.std(full_stack, axis = 0)
 print("Done!")
 
-fig, ax = plt.subplots()
-img_plot = ax.imshow(std_dev)
-fig.colorbar(img_plot)
-ax.set_xlabel("x distance")
-ax.set_ylabel("y diatance")
-ax.set_title("Standard Deviation, Hell's Half Acre")
+fig, ax = plt.subplots(2,1)
+img_plot = ax[0].imshow(std_dev)
+fig.colorbar(img_plot,ax=ax[0])
+img_plot2 = ax[1].imshow(average)
+fig.colorbar(img_plot2,ax=ax[1])
+
+ax[0].set_xlabel("x distance")
+ax[0].set_ylabel("y diatance")
+ax[0].set_title("Standard Deviation, Hell's Half Acre")
+
+ax[1].set_xlabel("x distance")
+ax[1].set_ylabel("y diatance")
+ax[1].set_title("Average, Hell's Half Acre")
 
 plt.show()
 
-dw.write_band(each_gdal, average, "E:\Data\Georeference_Outputs", "Average.tiff", None )
+dw.write_band(each_gdal, average, "C:\\Users\\***REMOVED***\\Documents\\Tube-detect", "Average.tiff", None )
