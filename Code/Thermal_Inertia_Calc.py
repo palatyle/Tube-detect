@@ -17,9 +17,9 @@ args2.day_thermal
 print(args2.day_thermal)
 '''
 
-input_day_thermal = "E:\\Data\\Georeference_Outputs\\Day_Clip.tif"
-input_night_thermal = "E:\\Data\\Georeference_Outputs\\Night_Clip.tif"
-input_albedo = "E:\\Data\\Georeference_Outputs\\Near_Clip.tif"
+input_day_thermal = "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\data\\thermal.tif"
+input_night_thermal = "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\data\\HHA_night_hres_align_clip.tif"
+input_albedo = "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\data\\Albedo_hres_align_clip.tif"
 
 raster_day,raster_GDAL_day,_= dw.read_in_raster(input_day_thermal)
 raster_night,raster_GDAL_night,_ = dw.read_in_raster(input_night_thermal)
@@ -34,8 +34,8 @@ min_temp_time = 720000 # 0200*60*60 -> hours to seconds conversion       scheidt
 latitude = 43.4956
 solar_constant = 1367 # W/m**2 for earth        V. M. Fedorov 
 Ct_transmittance = 0.75 # atmospheric transmittance for Earth     scheidt et al  
-day_temp = raster_day[5,:,:]
-night_temp = raster_night[0,:,:]
+day_temp = raster_day
+night_temp = raster_night
 flight_dt = datetime.fromisoformat('2022-06-17 13:00:00')# Get timezone aware datetime object
 flight_dt_tz_aware = dw.get_dt_obj(flight_dt, 'US/Mountain')
 
@@ -269,12 +269,11 @@ plt.show()
 print("wow!")
 
 
-'''
+
 #converting array to tiff file
 
-dw.write_band(albedo_GDAL, thermal_inertia, "E:\\Data\\Georeference_Outputs", "thermal_inertia.tiff", None)
+dw.write_band(albedo_GDAL, thermal_inertia, "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\data", "thermal_inertia.tiff", None)
 print("done")
 
-dw.write_band(albedo_GDAL, temp_ratio, "E:\\Data\\Georeference_Outputs", "temperature_ratio.tiff", None)
+dw.write_band(albedo_GDAL, temp_ratio, "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\data", "temperature_ratio.tiff", None)
 print("done") 
-'''

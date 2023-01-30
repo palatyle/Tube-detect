@@ -451,6 +451,9 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
         
     elif band.dtype == "float64":
         print('Writing tif...')
+        if np.ma.is_masked(band) == True:
+            band = band.filled(fill_value=3.4e+38)
+
         driver = gdal.GetDriverByName("GTiff")
         np.nan_to_num(band,nan=3.4e+38)
 
