@@ -17,9 +17,9 @@ args2.day_thermal
 print(args2.day_thermal)
 '''
 
-input_day_thermal = "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\data\\thermal.tif"
-input_night_thermal = "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\data\\HHA_night_hres_align_clip.tif"
-input_albedo = "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\data\\Albedo_hres_align_clip.tif"
+input_day_thermal = "/Users/tylerpaladino/Documents/ISU/Thesis/Lava_tube_detection/data/thermal.tif"
+input_night_thermal = "/Users/tylerpaladino/Documents/ISU/Thesis/Lava_tube_detection/data/HHA_night_hres_align_clip.tif"
+input_albedo = "/Users/tylerpaladino/Documents/ISU/Thesis/Lava_tube_detection/data/Albedo_hres_align_clip.tif"
 
 raster_day,raster_GDAL_day,_= dw.read_in_raster(input_day_thermal)
 raster_night,raster_GDAL_night,_ = dw.read_in_raster(input_night_thermal)
@@ -27,16 +27,16 @@ albedo,albedo_GDAL,_ = dw.read_in_raster(input_albedo)
 
 
 angular_frequency = 7.27*10**(-5) # rad/sec                maltese et al
-day_satellite_overpass_time = 3960000 # 1100*60*60         Scheidt et al
-night_satellite_overpass_time = 7956000 # 2210*60*60       Scheidt et al
-max_temp_time = 5040000 # 1400*60*60 -> hours to seconds conversion      scheidt et al
-min_temp_time = 720000 # 0200*60*60 -> hours to seconds conversion       scheidt et al
+day_satellite_overpass_time = float(1121*60*60) #seconds since midnight 
+night_satellite_overpass_time = float(246*60*60)  #seconds since midnight    
+max_temp_time = float(1400*60*60) #seconds since midnight    scheidt et al
+min_temp_time = float(200*60*60) #seconds since midnight     scheidt et al
 latitude = 43.4956
 solar_constant = 1367 # W/m**2 for earth        V. M. Fedorov 
 Ct_transmittance = 0.75 # atmospheric transmittance for Earth     scheidt et al  
 day_temp = raster_day
 night_temp = raster_night
-flight_dt = datetime.fromisoformat('2022-06-17 13:00:00')# Get timezone aware datetime object
+flight_dt = datetime.fromisoformat('2022-06-16 11:21:00')# Get timezone aware datetime object
 flight_dt_tz_aware = dw.get_dt_obj(flight_dt, 'US/Mountain')
 
 
@@ -54,8 +54,10 @@ def calc_max_temp(d_temp, n_temp, max_t_time, d_sat_time, ang_freq, n_sat_time):
     Returns:
         max_temp (masked_array) : maximum temperature
     """    
-    max_temp = (d_temp +((d_temp - n_temp)*((np.cos(ang_freq*max_t_time)) -
-    (np.cos(ang_freq*d_sat_time))))/((np.cos(ang_freq*d_sat_time)) -(np.cos(ang_freq*n_sat_time))))
+
+    max_temp = d_temp + (((d_temp-n_temp)*(np.cos(ang_freq*max_t_time)-np.cos(ang_freq*d_sat_time)))/(np.cos(ang_freq*d_sat_time)-np.cos(ang_freq*n_sat_time)))
+    
+    
     return max_temp
 
 
@@ -73,8 +75,11 @@ def calc_min_temp(n_temp, d_temp, ang_freq, min_t_time, n_sat_time, d_sat_time):
     Returns:
         min_temp (masked_array) : minimum temperature
     """    
-    min_temp = (n_temp +((d_temp - n_temp)*((np.cos(ang_freq*min_t_time)) -
-    (np.cos(ang_freq*n_sat_time))))/((np.cos(ang_freq*d_sat_time))-(np.cos(ang_freq*n_sat_time))))
+    # min_temp = (n_temp +((d_temp - n_temp)*((np.cos(ang_freq*min_t_time)) -
+    # (np.cos(ang_freq*n_sat_time))))/((np.cos(ang_freq*d_sat_time))-(np.cos(ang_freq*n_sat_time))))
+    
+    min_temp = n_temp + (((d_temp-n_temp)*(np.cos(ang_freq*min_t_time)-np.cos(ang_freq*n_sat_time)))/(np.cos(ang_freq*d_sat_time)-np.cos(ang_freq*n_sat_time)))
+
     return min_temp
 
 
@@ -246,10 +251,10 @@ def calc_TI(ATI, sol_const, Ct, ang_freq, A1, night_sat_time, pd1,day_sat_time,b
     (np.sqrt(2+(np.sqrt(2)/b_var)+(1/(2*b_var**2)))))))
     return TI
 
-max_Temperature = calc_max_temp(day_temp, night_temp, max_temp_time, day_satellite_overpass_time, angular_frequency,night_satellite_overpass_time)
-min_Temperature = calc_min_temp(night_temp,day_temp,angular_frequency,min_temp_time,night_satellite_overpass_time,day_satellite_overpass_time)
-temp_range = calc_temp_range(max_Temperature, min_Temperature)
-temp_ratio = calc_temp_ratio(max_Temperature, min_Temperature)
+max_Temperature = calc_max_temp(day_temp/100., night_temp/100., max_temp_time,day_satellite_overpass_time, angular_frequency,night_satellite_overpass_time)
+min_Temperature = calc_min_temp(night_temp/100.,day_temp/100.,angular_frequency,min_temp_time,night_satellite_overpass_time,day_satellite_overpass_time)
+temp_range = calc_temp_range(max_Temperature, night_temp/100.)
+temp_ratio = calc_temp_ratio(max_Temperature, night_temp/100.)
 apparent_thermal_inertia = calc_ATI(albedo, temp_range)
 b = calc_b(angular_frequency,max_temp_time)
 solar_declination = calc_solar_dec(flight_dt_tz_aware)
@@ -258,22 +263,31 @@ phase_diff_2 = calc_pd_2(b)
 xi_constant = calc_xi(solar_declination, latitude)
 A1_fourier = calc_A1(solar_declination, latitude, xi_constant)
 A2_fourier = calc_A2(solar_declination, latitude, xi_constant)
+# thermal_inertia =calc_TI(apparent_thermal_inertia, solar_constant, Ct_transmittance,angular_frequency, A1_fourier,
+#  night_satellite_overpass_time, phase_diff_1, day_satellite_overpass_time, b, A2_fourier, phase_diff_2)
 thermal_inertia =calc_TI(apparent_thermal_inertia, solar_constant, Ct_transmittance,angular_frequency, A1_fourier,
- night_satellite_overpass_time, phase_diff_1, day_satellite_overpass_time, b, A2_fourier, phase_diff_2)
+ night_satellite_overpass_time, phase_diff_1, max_temp_time, b, A2_fourier, phase_diff_2) # using max temp time instead of overpass time.
 
 
 
-pos = plt.imshow(thermal_inertia)
-plt.colorbar(pos)
-plt.show()
-print("wow!")
+# pos = plt.imshow(thermal_inertia)
+# plt.colorbar(pos)
+# plt.show()
+# print("wow!")
 
 
-
+print(np.median(max_Temperature))
+print(np.median(night_temp/100.))
 #converting array to tiff file
 
-dw.write_band(albedo_GDAL, thermal_inertia, "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\data", "thermal_inertia.tiff", None)
+dw.write_band(albedo_GDAL, thermal_inertia, "/Users/tylerpaladino/Documents/ISU/Thesis/Lava_tube_detection/data", "thermal_inertia.tiff", None)
 print("done")
 
-dw.write_band(albedo_GDAL, temp_ratio, "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\data", "temperature_ratio.tiff", None)
+dw.write_band(albedo_GDAL, temp_ratio, "/Users/tylerpaladino/Documents/ISU/Thesis/Lava_tube_detection/data/", "temperature_ratio.tiff", None)
 print("done") 
+
+dw.write_band(albedo_GDAL, max_Temperature, "/Users/tylerpaladino/Documents/ISU/Thesis/Lava_tube_detection/data/", "Max_temp_Scheidt.tiff", None)
+dw.write_band(albedo_GDAL, night_temp/100., "/Users/tylerpaladino/Documents/ISU/Thesis/Lava_tube_detection/data/", "min_temp_kelvin.tiff", None)
+
+
+dw.write_band(albedo_GDAL, apparent_thermal_inertia, "/Users/tylerpaladino/Documents/ISU/Thesis/Lava_tube_detection/data/", "ATI.tiff", None)
