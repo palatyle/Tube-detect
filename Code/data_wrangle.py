@@ -457,7 +457,7 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
         driver = gdal.GetDriverByName("GTiff")
         np.nan_to_num(band,nan=3.4e+38)
 
-        dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Float64, options=["COMPRESS=LZW"])
+        dsOut = driver.Create(os.path.join(dest_dir, out_fn), raster_GDAL.RasterXSize, raster_GDAL.RasterYSize, 1, gdal.GDT_Float64)
         CopyDatasetInfo(raster_GDAL,dsOut)
         dsOut.GetRasterBand(1).WriteArray(band)
         dsOut.GetRasterBand(1).SetNoDataValue(3.4e+38)

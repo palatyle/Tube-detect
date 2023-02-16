@@ -1,7 +1,9 @@
 import sys
+import io
 
 import matplotlib.pyplot as plt
 import numpy as np
+import imageio
 
 def calc_K(temp,vacuum=False):
     """Calculates thermal diffusivity using the emperical formula
@@ -32,7 +34,7 @@ def calc_K(temp,vacuum=False):
     # print(therm_diffusivity/10000)
     return therm_diffusivity/10000
 
-def calc_K_regolith(conductivity, cp, density):
+def calc_K_regolith(conductivity, cp, density=1100):
     """Calculates thermal diffusivity from conductivity, specific heat, 
     and density 
 
@@ -43,7 +45,7 @@ def calc_K_regolith(conductivity, cp, density):
     cp : float
         Specific heat 
     density : float
-        Bulk rock density (kg/m^3)
+        Bulk rock density, by default 1100 (kg/m^3) (Hayne et al. 2013)
 
     Returns
     -------
@@ -52,7 +54,7 @@ def calc_K_regolith(conductivity, cp, density):
     """    
     return conductivity/(density*cp)
 
-def calc_conductivity(T,Kc,chi):
+def calc_conductivity(T,Kc=3.4e-3,chi=2.7):
     """Calculate thermal conductivity based on eq. A4 from Hayne et al. 2017
 
     Parameters
@@ -60,9 +62,9 @@ def calc_conductivity(T,Kc,chi):
     T : array
         Temperature array (K)
     Kc : float
-        Phonon conductivity (W m^-1 K^-1)
+        Phonon conductivity, by default 3.4e-3 (W m^-1 K^-1)
     chi : float
-        Radiative conductivity parameter (unitless)
+        Radiative conductivity parameter, by default 2.7 (unitless)
 
     Returns
     -------
@@ -128,69 +130,174 @@ def calc_cos_eq(temps,times):
     h_func = times[1]
     return A_func, k_func, p_func, h_func
 
-# Model domain length - Rough size of tube roof 
-L = 10 # 5m basalt, 5m regolith (m)
+def get_penetration_depth(temp_arr,bulk_temp,threshold=1):
+    """Calculates the deepest location where temperature penetrates. 
+    Threshold allows one to tune how large of a change must occur between
+    grid points to be deemed significant 
+
+    Parameters
+    ----------
+    temp_arr : arr
+        Temperature array (K)
+    threshold : int, optional
+        Threshold temperature, by default 1 K
+
+    Returns
+    -------
+    int
+        Index of greatest penetration depth
+    """        
+    # Find difference between each value and bulk rock temperature
+    # Add 0 to bottom to maintain length
+    # diff = abs(np.diff(temp_arr,prepend=0))
+    diff = abs(temp_arr-bulk_temp)
+
+    # Find all indices where above difference is greater than threshold
+    penetration_depths = np.where(diff>=threshold)
+    
+    #Convert 1st element (the only element) to list
+    pdep_list = penetration_depths[0].tolist()
+    
+    if not(pdep_list):
+        return 0
+    else:
+        # Get last value since we care about the deepest change
+        return pdep_list[-1]
+
+
+def find_reg_depth_idx(roof_thick,dom_len,dom_arr):
+    """Creates a boolean that contains 1 for basalt and 
+    0 for regolith. Calculates what proportion of the domain is
+    basalt or regolith
+
+    Parameters
+    ----------
+    roof_thick : int
+        Roof thickness
+    dom_len : int
+        Length of domain
+    dom_arr : array
+        grid array
+
+    Returns
+    -------
+    bool
+        Regolith boolean list
+    """    
+    # Set list up to track what material we're in
+    # 1 = basalt, 0 = regolith
+    reg_bool = np.ones_like(dom_arr)
+
+    # If roof thickness is the same as domain length, there is no regolith
+    # Return bool of only 1s. 
+    if roof_thick == dom_len:
+        return reg_bool
+    else:
+        # Set from 0th element to correct portion of x that has regolith equal to 0
+        reg_bool[len(dom_arr)-round(len(dom_arr)/(dom_len/roof_thick))::-1] = 0
+
+        return reg_bool
+
+Earth_flag = False
+
+save_gif = False
+
+if Earth_flag == True:
+    regolith_thickness = 0
+    tube_roof = 5
+elif Earth_flag == False:
+    # Model domain length - Rough size of tube roof 
+    regolith_thickness = 5 # (m) 5m - (Fa and Wieczorek, 2012)
+    tube_roof = 5 # (m)
+    
+L = regolith_thickness + tube_roof # 5m basalt, 5m regolith (m)
 
 # Timestep divisions
-timesteps = 500
+timesteps = 5000
+
+
 
 # Number of grid points
-nx = 30 
-# Seconds in 1 lunar day
-day = 14 * 24 * 60 * 60
+nx = 50
+if Earth_flag == True:
+    # Seconds in 1 day
+    day = 24*60*60*14
+elif Earth_flag == False:
+    # Seconds in 1 lunar day
+    day = 29.53 * 24 * 60 * 60 * 14
 # Time array + timestep
 nt,dt = np.linspace(1,day,timesteps,retstep=True) 
 #  Space array + grid spacing
 x,dx = np.linspace(0,L,nx,retstep=True)
 
+regolith_bool = find_reg_depth_idx(tube_roof,L,x)
 
-# Bulk rock temperature. 
-T_basalt = 12 # (C) 
+if Earth_flag == True:
+    # Max and min diurnal temps/times from UAS data (median from day and night). 
+    max_temp = 42.37+273.15 # (K)
+    max_temp_time = 14 * 60 * 60 # (seconds since midnight)
+    min_temp = 12.67+273.15 # (K)
+    min_temp_time = 2 * 60 * 60 # (seconds since midnight)
+    
+    # Bulk rock temperature. 
+    T_basalt = min_temp # (K) 
+elif Earth_flag == False:
+    # Max and min diurnal temps/times from Diviner data. 
+    max_temp = 356.43 # (K) Williams et al. 2017 over Highland 1
+    max_temp_time = (29.53/2) * 24 * 60 * 60 # (seconds since midnight) https://svs.gsfc.nasa.gov/12739
+    min_temp = 87.76 # (K) Williams et al. 2017 over Highland 1
+    min_temp_time = 0  # (seconds since midnight)
 
-# Max and min diurnal temps/times from UAS data (median from day and night). 
-max_temp = 42.37 # (C)
-max_temp_time = 14 * 60 * 60 # (seconds since midnight)
-min_temp = 12.67 # (C)
-min_temp_time = 2 * 60 * 60 # (seconds since midnight)
-
-
+    # Bulk rock temperature. 
+    # T_basalt = (max_temp+min_temp)/2 # (K) 
+    T_basalt = min_temp
 # Get cosine equation parameters 
 A,k,p,h = calc_cos_eq([max_temp,min_temp],[max_temp_time,min_temp_time])
 
 # Temperature curve calculated from UAS data. 
 temp_curve = -A*np.cos((np.pi/p)*(nt-h)) + k
 
-# Calculate diffusivity for every temperature value. 
-K_matrix = calc_K(temp_curve)
 
 # Create temperature array. Set all values equal to basalt temp
 T = np.ones_like(x)*T_basalt
+
 # Boundary condition is set by temperature curve
-T[0] = temp_curve[0] # (C) 
-
-# Check explicity FTCS stabiltiy. dt must be less than dx^2/2*K
-dtmax =(dx**2)/(2*K_matrix)
-if dt >= min(dtmax):
-    sys.exit('timestep: '+str(dt)+' is greater than ' + str(dtmax))
+T[0] = temp_curve[0] # (K) 
 
 
-plt.ion()
 fig, ax = plt.subplots(1,2)
-ax[0].set_ylabel('distance [m]')
-ax[0].set_xlabel('Temperature [C]')
-ax[0].invert_yaxis()
+fig.tight_layout()
+ax[0].set_ylabel('Depth [m]')
+ax[0].set_xlabel('Temperature [K]')
 
-ax[1].set_ylabel('Temperature [C]')
-ax[1].set_xlabel('Time (hours)')
+ax[1].set_ylabel('Temperature [K]')
+if Earth_flag == True:
+    ax[1].set_xlabel('Time (hours)')
+elif Earth_flag == False:
+    ax[1].set_xlabel('Time [days]')
 
-
+images = []
+penetration_depth=[]
 for ti,ts in enumerate(nt):
     # Setup new temperature array for future time. Fill with zeros
     Tnew = np.zeros_like(T)
     
     # Loop through space using finite difference explicit discretization of Diffusion Eq.
     for i in range(1,nx-1):
-        Tnew[i] = T[i] + K_matrix[ti]*dt*((T[i+1]-(2*T[i])+T[i-1])/dx**2)
+        if regolith_bool[i] == 1:
+            if Earth_flag == True:
+                K = calc_K(T[i],vacuum=False)
+            elif Earth_flag == False:
+                K = calc_K(T[i],vacuum=True)
+        elif regolith_bool[i] == 0:
+            K = calc_K_regolith(calc_conductivity(T[i]),calc_cp(T[i]))
+            
+        dtmax =(dx**2)/(2*K)
+        if dt >= dtmax:
+            sys.exit('timestep: '+str(dt)+' is greater than ' + str(dtmax))
+        
+        # forward explicit finite difference approximation 
+        Tnew[i] = T[i] + K*dt*((T[i+1]-(2*T[i])+T[i-1])/dx**2)
         
     # Reinforce boundary conditions
     Tnew[0] = temp_curve[ti]
@@ -198,20 +305,49 @@ for ti,ts in enumerate(nt):
     
     # Set current T equal to Tnew
     T = Tnew
-
+    
     # Plot temperature curve
     ax[0].plot(Tnew,x)
-    # Plot solar forcing curve 
-    ax[1].plot(ts/60/60,temp_curve[ti],'bo')
-    ax[0].invert_yaxis()
-    # Set limits
-    ax[0].set_xlim(min_temp-5,max_temp)
-    ax[1].set_xlim(0,day/60/60)
-    ax[1].set_ylim(min_temp,max_temp)
-    plt.pause(.1)
-    ax[0].cla()
-    ax[0].set_ylabel('distance [m]')
-    ax[0].set_xlabel('Temperature [C]')
     
-    ax[1].set_ylabel('Temperature [C]')
-    ax[1].set_xlabel('Time (hours)')
+    penetration_depth.append(get_penetration_depth(T,T_basalt))
+    
+    ax[0].axhline(y=x[penetration_depth[ti]],color='r')
+    # Plot solar forcing curve 
+    if Earth_flag == True:
+        ax[1].plot(ts/60/60,temp_curve[ti],'bo')
+    elif Earth_flag == False:
+        ax[1].plot(ts/60/60/24,temp_curve[ti],'bo')
+    ax[0].invert_yaxis()
+    
+    # Set limits
+    if Earth_flag == True:
+        ax[1].set_xlim(0,day/60/60)  
+    elif Earth_flag == False:
+        ax[1].set_xlim(0,day/60/60/24)
+
+    ax[0].set_xlim(min_temp-5,max_temp)
+    ax[1].set_ylim(min_temp,max_temp)
+ 
+    ax[0].set_ylabel('Depth [m]')
+    ax[0].set_xlabel('Temperature [K]')
+    
+    ax[0].minorticks_on()
+    ax[1].minorticks_on()
+
+
+    
+
+    plt.pause(.1)
+
+    if save_gif == True:
+        img_buf = io.BytesIO()
+        fig.savefig(img_buf)
+        images.append(imageio.imread(img_buf))
+
+    ax[0].cla()
+    
+if save_gif == True:
+    if Earth_flag == True:
+        imageio.mimsave('Earth_temp_p_depth-'+str(round(max(x[penetration_depth]),2))+'m.gif',images)
+    elif Earth_flag == False:
+        imageio.mimsave('lunar_temp_p_depth-'+str(round(max(x[penetration_depth]),2))+'m_reg_depth-'+str(regolith_thickness)+'m.gif',images)
