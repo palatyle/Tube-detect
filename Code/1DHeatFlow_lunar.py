@@ -1,5 +1,8 @@
 import sys
 import io
+import warnings
+import time
+from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -150,8 +153,9 @@ def get_penetration_depth(temp_arr,bulk_temp,threshold=1):
     # Find difference between each value and bulk rock temperature
     # Add 0 to bottom to maintain length
     # diff = abs(np.diff(temp_arr,prepend=0))
-    diff = abs(temp_arr-bulk_temp)
+    diff = temp_arr-bulk_temp
 
+    
     # Find all indices where above difference is greater than threshold
     penetration_depths = np.where(diff>=threshold)
     
@@ -198,33 +202,55 @@ def find_reg_depth_idx(roof_thick,dom_len,dom_arr):
 
         return reg_bool
 
+def stability_check(min_T,max_T,x_step,timestep):
+
+    T_list = np.linspace(min_T,max_T,100000)
+
+    K_rock = calc_K(T_list,vacuum=True)
+    K_reg = calc_K_regolith(calc_conductivity(T_list),calc_cp(T_list))
+
+
+    dtmax_rock =(x_step**2)/(2*K_rock)
+    dtmax_reg =(x_step**2)/(2*K_reg)
+
+
+    bad_rock = np.where(timestep >= dtmax_rock)
+    bad_reg = np.where(timestep >= dtmax_reg)
+    if not(bad_reg[0].tolist()) and not(bad_rock[0].tolist()):
+        return None
+    else:
+        sys.exit('timestep: '+str(timestep)+' is too large')
+
+
 Earth_flag = False
 
-save_gif = False
+save_gif = True
 
 if Earth_flag == True:
     regolith_thickness = 0
     tube_roof = 5
 elif Earth_flag == False:
     # Model domain length - Rough size of tube roof 
-    regolith_thickness = 5 # (m) 5m - (Fa and Wieczorek, 2012)
+    regolith_thickness = 0.5 # (m) 5m - (Fa and Wieczorek, 2012)
     tube_roof = 5 # (m)
     
 L = regolith_thickness + tube_roof # 5m basalt, 5m regolith (m)
 
 # Timestep divisions
-timesteps = 5000
+timesteps = 1500000
 
-
+lower_boundary = 45 # 290 # 45 # K Paige 2010
 
 # Number of grid points
 nx = 50
+
+
 if Earth_flag == True:
     # Seconds in 1 day
-    day = 24*60*60*14
+    day = 24*60*60
 elif Earth_flag == False:
-    # Seconds in 1 lunar day
-    day = 29.53 * 24 * 60 * 60 * 14
+    # Seconds in 1 lunar day. lunar day  29.53 earth days
+    day = 65*365*24*60*60
 # Time array + timestep
 nt,dt = np.linspace(1,day,timesteps,retstep=True) 
 #  Space array + grid spacing
@@ -249,13 +275,15 @@ elif Earth_flag == False:
     min_temp_time = 0  # (seconds since midnight)
 
     # Bulk rock temperature. 
-    # T_basalt = (max_temp+min_temp)/2 # (K) 
-    T_basalt = min_temp
+    T_basalt = (max_temp+min_temp)/2 # (K) 
+    # T_basalt = min_temp
 # Get cosine equation parameters 
 A,k,p,h = calc_cos_eq([max_temp,min_temp],[max_temp_time,min_temp_time])
 
 # Temperature curve calculated from UAS data. 
 temp_curve = -A*np.cos((np.pi/p)*(nt-h)) + k
+
+stability_check(lower_boundary,max_temp,dx,dt)
 
 
 # Create temperature array. Set all values equal to basalt temp
@@ -266,7 +294,7 @@ T[0] = temp_curve[0] # (K)
 
 
 fig, ax = plt.subplots(1,2)
-fig.tight_layout()
+fig.tight_layout(pad=1.8)
 ax[0].set_ylabel('Depth [m]')
 ax[0].set_xlabel('Temperature [K]')
 
@@ -274,14 +302,15 @@ ax[1].set_ylabel('Temperature [K]')
 if Earth_flag == True:
     ax[1].set_xlabel('Time (hours)')
 elif Earth_flag == False:
-    ax[1].set_xlabel('Time [days]')
+    ax[1].set_xlabel('Time [years]')
 
 images = []
 penetration_depth=[]
-for ti,ts in enumerate(nt):
+count = 0 
+for ti,ts in enumerate(tqdm(nt)):
+    count += 1
     # Setup new temperature array for future time. Fill with zeros
     Tnew = np.zeros_like(T)
-    
     # Loop through space using finite difference explicit discretization of Diffusion Eq.
     for i in range(1,nx-1):
         if regolith_bool[i] == 1:
@@ -294,60 +323,77 @@ for ti,ts in enumerate(nt):
             
         dtmax =(dx**2)/(2*K)
         if dt >= dtmax:
-            sys.exit('timestep: '+str(dt)+' is greater than ' + str(dtmax))
+            warnings.warn('timestep: '+str(dt)+' is greater than ' + str(dtmax))
         
         # forward explicit finite difference approximation 
         Tnew[i] = T[i] + K*dt*((T[i+1]-(2*T[i])+T[i-1])/dx**2)
         
     # Reinforce boundary conditions
     Tnew[0] = temp_curve[ti]
-    Tnew[-1] = T[-1]
+    # Tnew[-1] = T[-1]
+    Tnew[-1] = lower_boundary
     
     # Set current T equal to Tnew
     T = Tnew
     
-    # Plot temperature curve
-    ax[0].plot(Tnew,x)
+
     
     penetration_depth.append(get_penetration_depth(T,T_basalt))
     
-    ax[0].axhline(y=x[penetration_depth[ti]],color='r')
-    # Plot solar forcing curve 
-    if Earth_flag == True:
-        ax[1].plot(ts/60/60,temp_curve[ti],'bo')
-    elif Earth_flag == False:
-        ax[1].plot(ts/60/60/24,temp_curve[ti],'bo')
-    ax[0].invert_yaxis()
-    
-    # Set limits
-    if Earth_flag == True:
-        ax[1].set_xlim(0,day/60/60)  
-    elif Earth_flag == False:
-        ax[1].set_xlim(0,day/60/60/24)
-
-    ax[0].set_xlim(min_temp-5,max_temp)
-    ax[1].set_ylim(min_temp,max_temp)
- 
-    ax[0].set_ylabel('Depth [m]')
-    ax[0].set_xlabel('Temperature [K]')
-    
-    ax[0].minorticks_on()
-    ax[1].minorticks_on()
-
 
     
+    # plt.pause(.00001)
 
-    plt.pause(.1)
+    if save_gif == True and count == 500 or ti == 0:
+        
+        # Plot temperature curve
+        ax[0].plot(Tnew,x)
 
-    if save_gif == True:
+        ax[0].axhline(y=x[penetration_depth[ti]],color='r')
+
+        try:
+            ax[0].axhline(y=x[np.where(np.roll(regolith_bool,1)!=regolith_bool)[0][-1]],linestyle=":",color="grey",alpha=0.5)
+        except:
+            None
+
+        # Plot solar forcing curve 
+        if Earth_flag == True:
+            ax[1].plot(ts/60/60,temp_curve[ti],'bo')
+        elif Earth_flag == False:
+            ax[1].plot(ts/60/60/24/365,temp_curve[ti],'bo')
+        ax[0].invert_yaxis()
+        
+        # Set limits
+        if Earth_flag == True:
+            ax[1].set_xlim(0,day/60/60)  
+        elif Earth_flag == False:
+            ax[1].set_xlim(0,day/60/60/24/365)
+
+        if lower_boundary < min_temp:
+            ax[0].set_xlim(lower_boundary-5,max_temp)
+        elif lower_boundary >= min_temp:
+            ax[0].set_xlim(min_temp-5,max_temp)
+            
+        ax[1].set_ylim(min_temp,max_temp)
+    
+        ax[0].set_ylabel('Depth [m]')
+        ax[0].set_xlabel('Temperature [K]')
+        
+        ax[0].minorticks_on()
+        ax[1].minorticks_on()
+
+        count = 0
         img_buf = io.BytesIO()
         fig.savefig(img_buf)
         images.append(imageio.imread(img_buf))
 
     ax[0].cla()
+
     
 if save_gif == True:
     if Earth_flag == True:
         imageio.mimsave('Earth_temp_p_depth-'+str(round(max(x[penetration_depth]),2))+'m.gif',images)
     elif Earth_flag == False:
         imageio.mimsave('lunar_temp_p_depth-'+str(round(max(x[penetration_depth]),2))+'m_reg_depth-'+str(regolith_thickness)+'m.gif',images)
+
+print(str(round(max(x[penetration_depth]),2)))
