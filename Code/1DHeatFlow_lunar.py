@@ -202,28 +202,11 @@ def find_reg_depth_idx(roof_thick,dom_len,dom_arr):
 
         return reg_bool
 
-def stability_check(min_T,max_T,x_step,timestep):
-
-    T_list = np.linspace(min_T,max_T,100000)
-
-    K_rock = calc_K(T_list,vacuum=True)
-    K_rock_no_vac = calc_K(T_list,vacuum=False)
-    K_reg = calc_K_regolith(calc_conductivity(T_list),calc_cp(T_list))
 
 
-    dtmax_rock =(x_step**2)/(2*K_rock)
-    dtmax_rock_no_vac =(x_step**2)/(2*K_rock_no_vac)
-    dtmax_reg =(x_step**2)/(2*K_reg)
 
-
-    bad_rock = np.where(timestep >= dtmax_rock)
-    bad_rock_no_vac = np.where(timestep >= dtmax_rock_no_vac)
-    bad_reg = np.where(timestep >= dtmax_reg)
-    if not(bad_reg[0].tolist()) and not(bad_rock[0].tolist()) and not(bad_rock_no_vac[0].tolist()):
-        return None
-    else:
-        sys.exit('timestep: '+str(timestep)+' is too large')
-
+def calc_dtmax(dx_step,therm_diff):
+    return (dx_step**2)/(2*therm_diff)
 
 Earth_flag = True
 
@@ -231,7 +214,7 @@ save_gif = True
 
 if Earth_flag == True:
     regolith_thickness = 0
-    tube_roof = 1
+    tube_roof = 5
 elif Earth_flag == False:
     # Model domain length - Rough size of tube roof 
     regolith_thickness = 0.5 # (m) 5m - (Fa and Wieczorek, 2012)
@@ -240,11 +223,11 @@ elif Earth_flag == False:
 L = regolith_thickness + tube_roof # 5m basalt, 5m regolith (m)
 
 # Timestep divisions
-timesteps = 150000
+timesteps = 150
 
 
 # Number of grid points
-nx = 50
+nx = 100
 
 
 if Earth_flag == True:
@@ -253,8 +236,7 @@ if Earth_flag == True:
 elif Earth_flag == False:
     # Seconds in 1 lunar day. lunar day  29.53 earth days
     day = 65*365*24*60*60
-# Time array + timestep
-nt,dt = np.linspace(1,day,timesteps,retstep=True) 
+
 #  Space array + grid spacing
 x,dx = np.linspace(0,L,nx,retstep=True)
 
@@ -282,14 +264,43 @@ elif Earth_flag == False:
 # Get cosine equation parameters 
 A,k,p,h = calc_cos_eq([max_temp,min_temp],[max_temp_time,min_temp_time])
 
-# Temperature curve calculated from UAS data. 
-temp_curve = -A*np.cos((np.pi/p)*(nt-h)) + k
 
 lower_boundary = 273 # 290 # 45 # K Paige 2010
 
 
-stability_check(lower_boundary,max_temp,dx,dt)
 
+dt_range = np.logspace(2,9,1000)
+dt_bool=[]
+print('Finding optimal dt value')
+for dt in tqdm(dt_range):
+    T_list = np.linspace(lower_boundary,max_temp,100000)
+
+    if Earth_flag == True:
+        K_rock_no_vac = calc_K(T_list,vacuum=False)
+        dtmax_rock_no_vac = calc_dtmax(dx,K_rock_no_vac)
+        bad_rock_no_vac = np.where(dt <= dtmax_rock_no_vac)
+        dt_bool.append(not(bad_rock_no_vac[0].tolist()))
+        # print(not(bad_rock[0].tolist()))
+    elif Earth_flag == False:
+        K_rock = calc_K(T_list,vacuum=True)
+        K_reg = calc_K_regolith(calc_conductivity(T_list),calc_cp(T_list))
+        dtmax_rock = calc_dtmax(dx,K_rock)
+        bad_rock = np.where(dt <= dtmax_rock)
+        dtmax_reg = calc_dtmax(dx,K_reg)
+        bad_reg = np.where(dt >= dtmax_reg)
+        dt_bool.append(not(bad_reg[0].tolist()) and not(bad_rock_no_vac[0].tolist()))
+
+# Find where false flips to true minus 10 as a buffer (since we're not testing every possible #)
+best_dt_idx = np.where(dt_bool)[0][0] - 10
+
+# Time array + timestep
+dt = dt_range[best_dt_idx]
+nt = np.arange(1,day,dt)
+print('dt='+str(dt))
+print('dx='+str(dx))
+
+# Temperature curve 
+temp_curve = -A*np.cos((np.pi/p)*(nt-h)) + k
 
 # Create temperature array. Set all values equal to basalt temp
 T = np.ones_like(x)*T_basalt
@@ -302,7 +313,7 @@ fig, ax = plt.subplots(1,2)
 fig.tight_layout(pad=1.8)
 ax[0].set_ylabel('Depth [m]')
 ax[0].set_xlabel('Temperature [K]')
-
+ax[0].grid(visible=True)
 ax[1].set_ylabel('Temperature [K]')
 if Earth_flag == True:
     ax[1].set_xlabel('Time (hours)')
@@ -395,6 +406,8 @@ for ti,ts in enumerate(tqdm(nt)):
         images.append(imageio.imread(img_buf))
 
     ax[0].cla()
+    ax[0].grid(visible=True)
+
 
     
 if save_gif == True:
