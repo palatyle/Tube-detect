@@ -409,11 +409,11 @@ for ti,ts in enumerate(tqdm(nt)):
     ax[0].grid(visible=True)
 
 
-    
+
 if save_gif == True:
     if Earth_flag == True:
-        imageio.mimsave('Earth_temp_p_depth-'+str(round(max(x[penetration_depth]),2))+'m.gif',images)
+        imageio.mimsave('Earth_temp_p_depth.gif',images)
     elif Earth_flag == False:
-        imageio.mimsave('lunar_temp_p_depth-'+str(round(max(x[penetration_depth]),2))+'m_reg_depth-'+str(regolith_thickness)+'m.gif',images)
+        imageio.mimsave('lunar_temp_p_depth_reg_depth-'+str(regolith_thickness)+'m.gif',images)
 
 print(str(round(max(x[penetration_depth]),2)))
