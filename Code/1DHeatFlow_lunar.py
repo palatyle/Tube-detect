@@ -354,7 +354,7 @@ for ti,ts in enumerate(tqdm(nt)):
     
 
     
-    penetration_depth.append(get_penetration_depth(T,T_basalt))
+    # penetration_depth.append(get_penetration_depth(T,T_basalt))
     
 
     
@@ -366,7 +366,7 @@ for ti,ts in enumerate(tqdm(nt)):
         ax[0].plot(Tnew,x,'-bo')
 
         ax[0].text(275,1,str(round(T[1],3)))
-        ax[0].axhline(y=x[penetration_depth[ti]],color='r')
+        # ax[0].axhline(y=x[penetration_depth[ti]],color='r')
 
         try:
             ax[0].axhline(y=x[np.where(np.roll(regolith_bool,1)!=regolith_bool)[0][-1]],linestyle=":",color="grey",alpha=0.5)
