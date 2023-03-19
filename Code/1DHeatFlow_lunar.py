@@ -207,28 +207,31 @@ def stability_check(min_T,max_T,x_step,timestep):
     T_list = np.linspace(min_T,max_T,100000)
 
     K_rock = calc_K(T_list,vacuum=True)
+    K_rock_no_vac = calc_K(T_list,vacuum=False)
     K_reg = calc_K_regolith(calc_conductivity(T_list),calc_cp(T_list))
 
 
     dtmax_rock =(x_step**2)/(2*K_rock)
+    dtmax_rock_no_vac =(x_step**2)/(2*K_rock_no_vac)
     dtmax_reg =(x_step**2)/(2*K_reg)
 
 
     bad_rock = np.where(timestep >= dtmax_rock)
+    bad_rock_no_vac = np.where(timestep >= dtmax_rock_no_vac)
     bad_reg = np.where(timestep >= dtmax_reg)
-    if not(bad_reg[0].tolist()) and not(bad_rock[0].tolist()):
+    if not(bad_reg[0].tolist()) and not(bad_rock[0].tolist()) and not(bad_rock_no_vac[0].tolist()):
         return None
     else:
         sys.exit('timestep: '+str(timestep)+' is too large')
 
 
-Earth_flag = False
+Earth_flag = True
 
 save_gif = True
 
 if Earth_flag == True:
     regolith_thickness = 0
-    tube_roof = 5
+    tube_roof = 1
 elif Earth_flag == False:
     # Model domain length - Rough size of tube roof 
     regolith_thickness = 0.5 # (m) 5m - (Fa and Wieczorek, 2012)
@@ -237,9 +240,8 @@ elif Earth_flag == False:
 L = regolith_thickness + tube_roof # 5m basalt, 5m regolith (m)
 
 # Timestep divisions
-timesteps = 1500000
+timesteps = 150000
 
-lower_boundary = 45 # 290 # 45 # K Paige 2010
 
 # Number of grid points
 nx = 50
@@ -247,7 +249,7 @@ nx = 50
 
 if Earth_flag == True:
     # Seconds in 1 day
-    day = 24*60*60
+    day = 24*60*60*365
 elif Earth_flag == False:
     # Seconds in 1 lunar day. lunar day  29.53 earth days
     day = 65*365*24*60*60
@@ -266,7 +268,7 @@ if Earth_flag == True:
     min_temp_time = 2 * 60 * 60 # (seconds since midnight)
     
     # Bulk rock temperature. 
-    T_basalt = min_temp # (K) 
+    T_basalt = (max_temp+min_temp)/2 # (K) 
 elif Earth_flag == False:
     # Max and min diurnal temps/times from Diviner data. 
     max_temp = 356.43 # (K) Williams et al. 2017 over Highland 1
@@ -282,6 +284,9 @@ A,k,p,h = calc_cos_eq([max_temp,min_temp],[max_temp_time,min_temp_time])
 
 # Temperature curve calculated from UAS data. 
 temp_curve = -A*np.cos((np.pi/p)*(nt-h)) + k
+
+lower_boundary = 273 # 290 # 45 # K Paige 2010
+
 
 stability_check(lower_boundary,max_temp,dx,dt)
 
@@ -342,13 +347,14 @@ for ti,ts in enumerate(tqdm(nt)):
     
 
     
-    # plt.pause(.00001)
 
-    if save_gif == True and count == 500 or ti == 0:
+
+    if save_gif == True and count == 250 or ti == 0:
         
         # Plot temperature curve
-        ax[0].plot(Tnew,x)
+        ax[0].plot(Tnew,x,'-bo')
 
+        ax[0].text(275,1,str(round(T[1],3)))
         ax[0].axhline(y=x[penetration_depth[ti]],color='r')
 
         try:
@@ -370,9 +376,9 @@ for ti,ts in enumerate(tqdm(nt)):
             ax[1].set_xlim(0,day/60/60/24/365)
 
         if lower_boundary < min_temp:
-            ax[0].set_xlim(lower_boundary-5,max_temp)
+            ax[0].set_xlim(273.15-5,max_temp)
         elif lower_boundary >= min_temp:
-            ax[0].set_xlim(min_temp-5,max_temp)
+            ax[0].set_xlim(273.15-5,max_temp)
             
         ax[1].set_ylim(min_temp,max_temp)
     
@@ -382,6 +388,7 @@ for ti,ts in enumerate(tqdm(nt)):
         ax[0].minorticks_on()
         ax[1].minorticks_on()
 
+        # plt.pause(.00001)
         count = 0
         img_buf = io.BytesIO()
         fig.savefig(img_buf)
