@@ -55,7 +55,7 @@ def albedo_calculator(raster):
     print("Done!")
     return albedo_value
 
-HHA_dir = "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\Super_res"
+HHA_dir = "C:\\Users\\palatyle\\Documents\\Tube-detect\\Super_res"
 os.chdir(HHA_dir)
 file_list = os.listdir(HHA_dir)
 
@@ -76,5 +76,5 @@ for file in file_list:
     Albedo_Temp = albedo_calculator(src_NP)
     print("Done!")
 
-    dw.write_band(src_GDAL, Albedo_Temp, "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\Albedo_calc", "Albedo" +  file, None) #define outdirectory
+    dw.write_band(src_GDAL, Albedo_Temp, "C:\\Users\\palatyle\\Documents\\Tube-detect\\Albedo_calc", "Albedo" +  file, None) #define outdirectory
     print("Albedo Calcualted")

@@ -1,13 +1,15 @@
-from statistics import mean
-from pysolar import solar
-import pytz
-from datetime import datetime
-import os
-import numpy as np
 import argparse
-from osgeo import gdal
-from osgeo.gdalnumeric import CopyDatasetInfo, BandWriteArray
+import os
 import time
+from datetime import datetime
+from statistics import mean
+
+import numpy as np
+import pytz
+from osgeo import gdal
+from osgeo.gdalnumeric import BandWriteArray, CopyDatasetInfo
+from pysolar import solar
+
 # import matplotlib.pyplot as plt
 
 start_time = time.time()
@@ -72,7 +74,18 @@ def get_solar_azi_alt(dt,lat,lon):
     return alt, azi
 
 def get_utc_offset(dt):
-    
+    """Get UTC offset in hours for a given datetime object
+
+    Parameters
+    ----------
+    dt : datetime object
+        Time to get UTC offset for
+
+    Returns
+    -------
+    int
+        UTC offset in hours
+    """    
     return 12 - (dt.tzinfo._utcoffset.seconds / 60 / 60)
 
 def date2jul(dt):
@@ -183,11 +196,11 @@ def sol_decl(sol_app_longitude,corr_obliq):
     """Calculate the solar declination in degrees for a given solar apparent longitude and corrected obliquity
 
     Args:
-        sol_app_longitude (_type_): _description_
-        corr_obliq (_type_): _description_
+        sol_app_longitude (float): solar apparent longitude in degrees
+        corr_obliq (float): corrected obliquity in degrees
 
     Returns:
-        _type_: _description_
+        float: solar declination in degrees
     """    
     return np.rad2deg(np.arcsin(np.sin(np.deg2rad(corr_obliq))*np.sin(np.deg2rad(sol_app_longitude))))
     
@@ -252,7 +265,6 @@ def band_math(raster, index):
         a = (raster[4,:,:].astype(float)-raster[2,:,:].astype(float)).filled(fill_value=np.nan)
         b = (raster[4,:,:].astype(float)+raster[2,:,:].astype(float)).filled(fill_value=np.nan)
         out = np.divide(a,b,where=b!=0)
-        # out = scale_factor((raster[4,:,:].astype(float)-raster[2,:,:].astype(float))/(raster[4,:,:].astype(float)+raster[2,:,:].astype(float)))
         print("Done!")
     elif index == 'NDWI' or index == 'ndwi':
         print("Calculating NDWI...")
@@ -260,21 +272,15 @@ def band_math(raster, index):
         a = (raster[1,:,:].astype(float)-raster[4,:,:].astype(float)).filled(fill_value=np.nan)
         b = (raster[1,:,:].astype(float)+raster[4,:,:].astype(float)).filled(fill_value=np.nan)
         out = scale_factor(np.divide(a,b,where=b!=0))
-        # out = scale_factor((raster[1,:,:].astype(float)-raster[4,:,:].astype(float))/(raster[1,:,:].astype(float)+raster[4,:,:].astype(float)))
         print("Done!")
     elif index == 'MSAVI2' or index == 'msavi2':
         print("Calculating MSAVI2...")
         out = np.zeros(raster[0,:,:].shape, dtype=np.float16)
         out = scale_factor((((2*raster[4,:,:].astype(float))+1) - np.sqrt((((2*raster[4,:,:].astype(float))+1)**2) - (8*(raster[4,:,:].astype(float) - raster[2,:,:].astype(float)))))/2)
-        # out = scale_factor((2 * (raster[4,:,:].astype(float) + 1) - np.sqrt((2 * raster[4,:,:].astype(float) + 1)**2 - 8 * (raster[4,:,:].astype(float) - raster[2,:,:].astype(float)))) / 2)
-        # out = scale_factor((1/2)*(2*(raster[4,:,:].astype(float)+1)-np.sqrt((2*raster[4,:,:].astype(float)+1)**2-8*(raster[4,:,:].astype(float)-raster[2,:,:].astype(float)))))
         out[out < -1] = -1
         out = out.filled(fill_value=np.nan)
         print("Done!")
     return out
-#out.astype(np.int16)
-#.filled(fill_value=32767.0).astype(np.int16)
-
 
 def GDAL_read_tiff(fn):
     '''
@@ -408,7 +414,6 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
         CopyDatasetInfo(raster_GDAL,dsOut)
         dsOut.GetRasterBand(1).WriteArray(band)
         dsOut.GetRasterBand(1).SetNoDataValue(-32767)
-        # dsOut.GetRasterBand(1).SetNoDataValue(np.nan)
         dsOut.FlushCache()
         
     elif band.dtype == 'uint16':
@@ -468,24 +473,48 @@ def write_band(raster_GDAL, band, dest_dir, out_fn, arg):
 
     return None 
 
-def numpy2CSV(arr, dir, fn ,nodata):
+def numpy2CSV(arr, dir, fn):
+    """Convert integer numpy array to CSV
 
+    Parameters
+    ----------
+    arr : int
+        Data array
+    dir : str
+        Directory to write out to
+    fn : str
+        filename to write out to 
+
+    Returns
+    -------
+    None
+    """    
     arr_reshape = arr.reshape(arr.size)
-    # arr_no_mask = arr_reshape[arr_reshape != nodata]
     arr_no_mask = arr_reshape
-    # arr_no_mask = arr_reshape.compressed()
     print("writing csv...")
     np.savetxt(os.path.join(dir, fn)+'.csv',arr_no_mask,fmt='%i',delimiter=',')
     print("Done")
 
     return None
 
-def numpy2CSV_float(arr, dir, fn ,nodata):
+def numpy2CSV_float(arr, dir, fn):
+    """Convert float numpy array to CSV
 
+    Parameters
+    ----------
+    arr : float
+        data array
+    dir : str
+        Directory to write out to
+    fn : str
+        filename to write out to 
+
+    Returns
+    -------
+    None
+    """
     arr_reshape = arr.reshape(arr.size)
-    # arr_no_mask = arr_reshape[arr_reshape != nodata]
     arr_no_mask = arr_reshape
-    # arr_no_mask = arr_reshape.compressed()
     print("writing csv...")
     np.savetxt(os.path.join(dir, fn)+'.csv',arr_no_mask,fmt='%f',delimiter=',')
     print("Done")
@@ -534,7 +563,6 @@ def calc_roughness(fn_DEM, dest_dir, arg):
     if arg.CSV:
         roughness_np = roughness_gdal.ReadAsArray()
         numpy2CSV_float(roughness_np, dest_dir, fn, -9999.)
-        # tif2csv(fn_DEM, fn, dest_dir)
     print("Done!")
 
 def calc_aspect(fn_DEM, dest_dir, arg):
@@ -581,19 +609,59 @@ def calc_hillshade(fn_DEM, dest_dir, azi, alt, arg):
     print("Done!")
 
 def tif2csv(fn,fn_out,dest):
-        np_ras, gdal_ras, nodat = read_in_raster(fn)
-        print('Convert to csv...')
-        numpy2CSV(np_ras.filled(nodat),dest,fn_out,float(nodat))
+    """Read in integer tif and convert to csv
+
+    Parameters
+    ----------
+    fn : str
+        Full path and filename of tif to read in
+    fn_out : str
+        Output csv filename
+    dest : str
+        Output directory
+
+    Returns
+    -------
+    None
+    """    
+    np_ras, _ , nodat = read_in_raster(fn)
+    print('Convert to csv...')
+    numpy2CSV(np_ras.filled(nodat),dest,fn_out,float(nodat))
+    return None
 
 def NDVI_filter(band_to_filter,NDVI,nodata):
+    """Filter band using NDVI threshold of .1
+
+    Parameters
+    ----------
+    band_to_filter : arr
+        array desired to be filtered
+    NDVI : arr
+        NDVI raster
+    nodata : int or float
+        nodata value associated with band raster
+
+    Returns
+    -------
+    arr
+        filtered band
+    """    
     band_to_filter[NDVI>0.1] = nodata
     return band_to_filter
 
 def read_in_raster(fn):
-    '''
-    
-    
-    '''    
+    """Read in raster using GDAL 
+
+    Parameters
+    ----------
+    fn : str
+        filename string leading to raster
+
+    Returns
+    -------
+    numpy arr, GDAL object, float/int
+        src(numpy array), src_GDAL(GDAL object), and nodata(float/int)
+    """    
     # Read in raster dataset 
     src_GDAL = GDAL_read_tiff(fn)
 
@@ -612,15 +680,10 @@ def read_in_raster(fn):
 
     return src, src_GDAL, nodata
 
-
-# Input directories
-# s_dir = 'C:\Students\Paladino\Tube-detect\data'
 ras = args.ortho_dir
 DEM = args.DEM_dir
 d_dir = args.out_dir
 
-# ras = 'day_ortho_16bit.tiff'
-# DEM = 'day_DEM.tiff'
 
 if args.NDVI or args.NDWI or args.MSAVI2 or args.thermal:
 
@@ -691,9 +754,7 @@ if args.hillshade:
     # Get solar azimuth and altitude
     s_alt,s_azi = get_solar_azi_alt(flight_dt_tz_aware,tube_lat,tube_lon)
 
- 
-    # sol_dec = calc_sol_dec(flight_dt_tz_aware)
-    
+     
     # Calculate and write hillshade from DEM. Solar azimuth and altitude calculated from position of tube and time of flight. 
     calc_hillshade(DEM, d_dir, s_azi, s_alt, args)
 

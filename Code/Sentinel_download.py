@@ -1,31 +1,31 @@
-# connect to the API
-from sentinelsat import SentinelAPI, read_geojson, geojson_to_wkt
 import os
 
-    
+from sentinelsat import SentinelAPI, geojson_to_wkt, read_geojson
 
 
 def Sentinel_download(filename, directory):
+    """Download Sentinel-2 data from Copernicus Hub given a geojson file. 
+
+    Parameters
+    ----------
+    filename : str
+        Path to geojson file containing the polygon to download data for.
+    directory : str
+        Path to directory to download data to.
+
+    Returns
+    -------
+    None.
+    """    
     
-    
-    
-    api = SentinelAPI('***REMOVED***', '***REMOVED***', 'https://apihub.copernicus.eu/apihub')
-    
-    # download single scene by known product id
-    #api.download(<product_id>)
-    
-    # search by polygon, time, and SciHub query keywords
-    
-    #change directory usign os package
+    api = SentinelAPI('user', 'password', 'https://apihub.copernicus.eu/apihub')
     
     os.chdir(directory)
     
     footprint = geojson_to_wkt(read_geojson(filename))
-    #loop through date range look around for date range
-    
-    
     
     years = ["2022"]
+    
     for x in years:
         start_date = x + "05" + "01"
         end_date = x + "08" + "15"
@@ -36,13 +36,11 @@ def Sentinel_download(filename, directory):
                              cloudcoverpercentage=(0, 10))
         
         # download all results from the search
-    
         api.download_all(products)
     return None 
 
-out = "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\Sentinel_dl"
-fn = "C:\\Users\\***REMOVED***\\Documents\\Tube-detect\\Sentinel_poly.geojson"
-
+out = "C:\\Users\\palatyle\\Documents\\Tube-detect\\Sentinel_dl"
+fn = "C:\\Users\\palatyle\\Documents\\Tube-detect\\Sentinel_poly.geojson"
 
 Sentinel_download(fn,  out)
 
