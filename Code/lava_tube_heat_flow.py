@@ -1,17 +1,25 @@
 '''
-1D heat flow model. Can calculate heat flow for basalt on the Moon or Earth. On Moon, a two layer model (regolith and basalt) 
-is used. The model will automatically find the largest possible timestep that satisfies numerical stability conditions. 
+1D heat flow model. Can calculate heat flow for basalt on the Moon or Earth. On the Moon, a two layer model (regolith and basalt) 
+is used. The model will automatically find the largest possible timestep that satisfies numerical stability conditions. Note that
+each celestial body will take time to come to equilibrium depending on thickness of rock and regolith, so play with the day value
+some and inspect the gif output. 
 
 Author: Tyler Paladino
 
 Run from command line. 
 Ex for Earth: 
-python lava_tube_heat_flow.py --Earth --roof_thickness 5 --regolith_thickness 0 --lower_boundary 273
+python lava_tube_heat_flow.py --Earth --roof_thickness 5 --regolith_thickness 0 --lower_boundary 273 --days 365
+
+This will run an earth model for 365 days with a tube roof thickness of 5 meters, no reoglith, a lower boundary 
+temperature of 273 K.
 
 Ex. for Moon:
-python lava_tube_heat_flow.py --Moon --roof_thickness 5 --regolith_thickness 5 --lower_boundary 45
+python lava_tube_heat_flow.py --Moon --roof_thickness 100 --regolith_thickness 5 --lower_boundary 45 --days 3650
 
-Output will be a .gif and a .csv in the same directory the code was run from. csv contains data
+This will run a Moon model for 3650 days with a tube roof thickness of 100 meters, 5 meters of regolith, 
+and a lower boundary temperature of 45 K. 
+
+Output will be a .gif and a .csv in the same directory the code was run from. The .csv contains data
 that can be visualzied in heat_flow_viz.py
 
 Required packages:
@@ -56,7 +64,9 @@ def parse():
     parser.add_argument("--lower_boundary", 
                         help="Set lower boundary. Either 45 K, 290 K, or T_basalt (Average of max/min temps from field)",
                         required = True)
-
+    parser.add_argument("--days", 
+                        help="Number of days to run model for",
+                        required = True)
     inputs = parser.parse_args()
 
     return inputs
@@ -354,19 +364,17 @@ def main():
     # Tube roof thickness
     tube_roof = float(cmd_inputs.roof_thickness)
 
+    # Days to run model for
+    days = int(cmd_inputs.days)
+    # Convert to seconds
+    total_time = 24 * 60 * 60 * days
     if cmd_inputs.Earth:
-        # Time to run model for
-        total_time = 24 * 60 * 60 * 365
-
         # Max and min diurnal temps/times from UAS data (median from day and night).
         max_temp = 42.37 + 273.15  # (K)
         max_temp_time = 14 * 60 * 60  # (seconds since midnight)
         min_temp = 12.67 + 273.15  # (K)
         min_temp_time = 2 * 60 * 60  # (seconds since midnight)
     elif cmd_inputs.Moon:
-        # Time to run model for
-        total_time = 60 * 365 * 24 * 60 * 60
-
         # Max and min diurnal temps/times from Diviner data.
         max_temp = 356.43  # (K) Williams et al. 2017 over Highland 1
         max_temp_time = ((29.53 / 2) * 24 * 60 * 60)  # (seconds since midnight) https://svs.gsfc.nasa.gov/12739
