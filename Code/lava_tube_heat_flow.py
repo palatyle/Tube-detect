@@ -310,7 +310,7 @@ def find_best_dt(lower_t_bound, del_x, temp_min, temp_max, args):
         Best dt value (largest without violating any numerical conditions)
     """    
     # Generate range of timesteps to test in log space. 
-    dt_range_test = np.logspace(2, 9, 1000)
+    dt_range_test = np.logspace(1, 9, 1000)
     print("Finding optimal dt value")
     # for dt in tqdm(dt_range_test):
 
