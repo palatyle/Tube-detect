@@ -1,26 +1,38 @@
-'''
-1D heat flow model. Can calculate heat flow for basalt on the Moon or Earth. On the Moon, a two layer model (regolith and basalt) 
+"""
+1D heat flow model. Can calculate heat flow for basalt on the Moon or Earth. On the Moon, a two layer model (regolith and basalt)
 is used. The model will automatically find the largest possible timestep that satisfies numerical stability conditions. Note that
 each celestial body will take time to come to equilibrium depending on thickness of rock and regolith, so play with the day value
-some and inspect the gif output. 
+some and inspect the gif output.
 
 Author: Tyler Paladino
 
 Run from command line. 
-Ex for Earth: 
-python lava_tube_heat_flow.py --Earth --roof_thickness 5 --regolith_thickness 0 --lower_boundary 273 --days 365
+Options:
+  --Earth               Set Earth to True
+  --Moon                Set Moon to True
+  --roof_thickness      Set tube roof thickness in meters | required
+  --regolith_thickness  Set regolith thickness in meters | required
+  --nx                  Set number of grid points in model domain | required
+  --lower_boundary_type Set lower boundary type. Input 'fixed' to fix lower boundary at specific temperature (Dirichelet BC). 
+                        Must also input temperature 'T_lower'. Input 'insulated' to assume no flux out of bottom of model (Neumann BC) | required
+  --T_lower             Set lower boundary temperature in K if using 'fixed' boundary condition 
+  --T_basalt            Set temperature in K of starting column | required
+  --days                Number of days to run model for | required
+  --starting_date       Give starting date in format YYYY-MM-DD_HH:MM. Timezone is assumed to be UTC | required
+  --latitude            latitude of interest in pvlib calculations. Give in decimal degrees | required 
+  --longitude           longitude of interest in pvlib calculations. Give in decimal degrees | required
+  --altitude            altitude of interest in pvlib calculations. Give in meters | required
 
-This will run an earth model for 365 days with a tube roof thickness of 5 meters, no reoglith, a lower boundary 
-temperature of 273 K.
+Ex for Earth:
+python lava_tube_heat_flow.py --Earth --roof_thickness 5 --regolith_thickness 0 --nx 50 --lower_boundary_type insulated --T_basalt 300 --days 365 --starting_date 2020-06-02_06:00 --latitude 43.5 --longitude -112.45 --altitude 1631
 
-Ex. for Moon:
-python lava_tube_heat_flow.py --Moon --roof_thickness 100 --regolith_thickness 5 --lower_boundary 45 --days 3650
+This will run an earth model for 365 days with a tube roof thickness of 5 meters, no reoglith, a lower boundary type of insulated, 
+a starting basalt temperature of 300 K, a starting date of June 2nd, 2020 at 6:00 UTC, and a location of 43.5 N, 112.45 W, and 1631 m altitude.
 
-This will run a Moon model for 3650 days with a tube roof thickness of 100 meters, 5 meters of regolith, 
-and a lower boundary temperature of 45 K. 
-
-Output will be a .gif and a .csv in the same directory the code was run from. The .csv contains data
-that can be visualzied in heat_flow_viz.py
+Output will be in a folder that is named by the date and time the script was run in the output directory
+Script will generate a .gif and two .csv files:
+    -surf_temp.csv: Contains time, surface temperature, incoming solar flux, and outgoing radiative flux
+    -run_parameters.csv: Contains all input parameters for the run
 
 Required packages:
 imageio
@@ -28,10 +40,12 @@ matplotlib
 numpy
 pandas
 tqdm
-'''
+pvlib
+"""
 
 import argparse
 import io
+import os
 import warnings
 
 import imageio
@@ -39,37 +53,69 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+import datetime
+import pvlib
+
 
 def parse():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--Earth",
-                        help="Set Earth to True",
-                        action="store_true"
-                        )
-    
-    parser.add_argument("--Moon",
-                        help="Set Moon to True",
-                        action="store_true"
-                        )
+                        help="Set Earth to True", 
+                        action="store_true")
+
+    parser.add_argument("--Moon", 
+                        help="Set Moon to True", 
+                        action="store_true")
 
     parser.add_argument("--roof_thickness", 
-                        help="Set tube roof thickness in meters",
-                        required = True)
+                        help="Set tube roof thickness in meters", 
+                        required=True)
 
     parser.add_argument("--regolith_thickness", 
-                        help="Set regolith thickness in meters",
-                        required = True)
+                        help="Set regolith thickness in meters", 
+                        required=True)
 
-    parser.add_argument("--lower_boundary", 
-                        help="Set lower boundary. Either 45 K, 290 K, or T_basalt (Average of max/min temps from field)",
-                        required = True)
+    parser.add_argument("--nx", 
+                        help="Set number of grid points in model domain", 
+                        required=False)
+
+    parser.add_argument("--lower_boundary_type",
+                        help="Set lower boundary type. Input 'fixed' to fix lower boundary at specific temperature (Dirichelet BC). Must also input temperature 'T_lower'. Input 'insulated' to assume no flux out of bottom of model (Neumann BC)",
+                        required=True)
+
+    parser.add_argument("--T_lower",
+                        required=False,
+                        help="Set lower boundary temperature in K if using 'fixed' boundary condition")
+
+    parser.add_argument("--T_basalt", 
+                        required=True, 
+                        help="Set temperature in Kof starting column.")
+
     parser.add_argument("--days", 
-                        help="Number of days to run model for",
-                        required = True)
+                        help="Number of days to run model for", 
+                        required=True)
+
+    parser.add_argument("--starting_date",
+                        help="Give starting date in format YYYY-MM-DD_HH:MM. Timezone is assumed to be UTC",
+                        required=True)
+
+    parser.add_argument("--latitude",
+                        help="latitude of interest in pvlib calculations. Give in decimal degrees",
+                        required=True)
+
+    parser.add_argument("--longitude",
+                        help="longitude of interest in pvlib calculations. Give in decimal degrees",
+                        required=True)
+
+    parser.add_argument("--altitude",
+                        help="altitude of interest in pvlib calculations. Give in meters",
+                        required=True)
+
     inputs = parser.parse_args()
 
     return inputs
+
 
 def calc_K(temp, vacuum=False):
     """Calculates thermal diffusivity using the emperical formula
@@ -122,7 +168,7 @@ def calc_K_regolith(conductivity, cp, density=1100):
     return conductivity / (density * cp)
 
 
-def calc_conductivity(T, Kc=3.4e-3, chi=2.7):
+def calc_conductivity_lunar(T, Kc=3.4e-3, chi=2.7):
     """Calculate thermal conductivity based on eq. A4 from Hayne et al. 2017
 
     Parameters
@@ -140,6 +186,13 @@ def calc_conductivity(T, Kc=3.4e-3, chi=2.7):
         Thermal conductivity (W m^-1 K^-1)
     """
     return Kc * (1 + chi * (T / 350) ** 3)
+
+
+def calc_conductivity_earth(T):
+
+    # Calculate temperature dependent thermal conductivity using relation from Haenel and Zoth (1973)
+    # and found to be accurate for basalt by Halbert and Parnell (2022)
+    return 3.6 - (0.49e-2 * T) + (0.61e-5 * T**2) + (2.58e-9 * T**3)
 
 
 def calc_cp(T, c0=-3.6125, c1=2.7431, c2=2.3616e-3, c3=-1.234e-5, c4=8.9093e-9):
@@ -168,72 +221,6 @@ def calc_cp(T, c0=-3.6125, c1=2.7431, c2=2.3616e-3, c3=-1.234e-5, c4=8.9093e-9):
         Specific heat capacity (J kg^-1 K^-1)
     """
     return c0 + (c1 * T) + (c2 * T**2) + (c3 * T**3) + (c4 * T**4)
-
-
-def calc_cos_eq(temps, times):
-    """Calculate parameters for equation of cosine function with the form of:
-    y = A*cos(pi/p * (x-h)) + k
-
-    Parameters
-    ----------
-    temps : list
-        list with length of 2. 0th element is max temp, 1st element is min temp
-    times : list
-        list with length of 2. 0th element is max time, 1st element is min time
-
-    Returns
-    -------
-    A_func : int
-        Amplitude of Cosine
-    k_func : int
-        Vertial shift of Cosine
-    p_func : int
-        Period of Cosine
-    h_func : int
-        Phase shift of Cosine
-    """
-    # Calculating parameters for cosine eq.
-    A_func = abs((temps[0] - temps[1]) / 2)
-    k_func = (temps[0] + temps[1]) / 2
-    p_func = times[0] - times[1]
-    h_func = times[1]
-    return A_func, k_func, p_func, h_func
-
-
-def get_penetration_depth(temp_arr, bulk_temp, threshold=1):
-    """Calculates the deepest location where temperature penetrates.
-    Threshold allows one to tune how large of a change must occur between
-    grid points to be deemed significant
-
-    Parameters
-    ----------
-    temp_arr : arr
-        Temperature array (K)
-    threshold : int, optional
-        Threshold temperature, by default 1 K
-
-    Returns
-    -------
-    int
-        Index of greatest penetration depth
-    """
-    # Find difference between each value and bulk rock temperature
-    # Add 0 to bottom to maintain length
-    # diff = abs(np.diff(temp_arr,prepend=0))
-    diff = temp_arr - bulk_temp
-
-    # Find all indices where above difference is greater than threshold
-    penetration_depths = np.where(diff >= threshold)
-
-    # Convert 1st element (the only element) to list
-    pdep_list = penetration_depths[0].tolist()
-
-    if not (pdep_list):
-        return 0
-    else:
-        # Get last value since we care about the deepest change
-        return pdep_list[-1]
-
 
 def find_reg_depth_idx(roof_thick, dom_len, dom_arr):
     """Creates a boolean that contains 1 for basalt and
@@ -287,7 +274,8 @@ def calc_dtmax(dx_step, therm_diff):
     """
     return (dx_step**2) / (2 * therm_diff)
 
-def find_best_dt(lower_t_bound, del_x, temp_min, temp_max, args):
+
+def find_best_dt(del_x, temp_min, temp_max, args):
     """Precompute possible timestep values and find the largest timestep that satisfies numerical conditions.
 
     Parameters
@@ -308,59 +296,115 @@ def find_best_dt(lower_t_bound, del_x, temp_min, temp_max, args):
 
     best_dt : float
         Best dt value (largest without violating any numerical conditions)
-    """    
-    # Generate range of timesteps to test in log space. 
+    """
+    # Generate range of timesteps to test in log space.
     dt_range_test = np.logspace(1, 9, 1000)
     print("Finding optimal dt value")
-    # for dt in tqdm(dt_range_test):
 
     # Create list of temperatures based on lowest to highest temps in domain
-    if lower_t_bound < temp_min:
-        T_list = np.linspace(lower_t_bound, temp_max, 100000)
-    else:
-        T_list = np.linspace(temp_min, temp_max, 100000)
+    T_list = np.linspace(temp_min, temp_max, 100000)
 
     if args.Earth:
         # Calculate K for all temperatutes in T_list
         K_rock = calc_K(T_list, vacuum=False)
         # Calculate maximum allowable timestep of every K value
         dtmax_rock = calc_dtmax(del_x, K_rock)
-        
+
         # create boolean array that shows which values on test timestep array are less than the min dt max value
         rock_bool = dt_range_test <= np.min(dtmax_rock)
-        
+
         # Get indices in rock_bool that are True, return last element
         best_dt_idx = np.where(rock_bool)[0][-1]
-        
+
     elif args.Moon:
         # Calculate K for all rock temperatutes in T_list
         K_rock = calc_K(T_list, vacuum=True)
         # Calculate K for all regolith temperatutes in T_list
-        K_reg = calc_K_regolith(calc_conductivity(T_list), calc_cp(T_list))
-        
+        K_reg = calc_K_regolith(calc_conductivity_lunar(T_list), calc_cp(T_list))
+
         # Calculate maximum allowable timestep of every K value for rock
         dtmax_rock = calc_dtmax(del_x, K_rock)
         # create boolean array that shows which values on test timestep array are less than the min dt max value
         rock_bool = dt_range_test <= np.min(dtmax_rock)
-        
+
         # Calculate maximum allowable timestep of every K value for reg
         dtmax_reg = calc_dtmax(del_x, K_reg)
         # create boolean array that shows which values on test timestep array are less than the min dt max value for reg
         reg_bool = dt_range_test <= np.min(dtmax_reg)
-        
+
         # Get indices in rock_bool and reg_bool that are True, return last element
         best_dt_idx = np.where(rock_bool & reg_bool)[0][-1]
 
-        
-    best_dt = dt_range_test[best_dt_idx]
+    best_dt = 5 * np.floor(dt_range_test[best_dt_idx] / 5)
     return best_dt
+
+
+def calculate_radiative_heat_flux(T_surf, epsilon=0.72):
+    """Calculates radiative heat flux
+
+    Args:
+        T_surf (float): Surface temperature (K)
+        epsilon (float, optional): Emissivity. Defaults to 0.72. Emissivity from Mineo and Pappalardo
+
+
+    Returns:
+        Q_rad (float): Radiative heat flux (W m^-2)
+    """
+    sigma = 5.67e-8  # Stefan-Boltzmann constant (W m^-2 K^-4)
+
+    # Calculate radiative heat flux out of the surface using Stephan-Boltzmann law
+    Q_rad = sigma * epsilon * T_surf**4  # Radiative heat flux at the surface
+
+    return Q_rad
+
+
+def calculate_solar_heat_flux(
+    lat, lon, alt, start_time, day_repeat_num, dt_freq, total_time=1
+):
+    """Calculates solar heating flux for one day starting on start_time. Repeats this day over day_repeat_num
+    to create a constant timeseries. Uses pvlib to calculate clearsky irradiance.
+
+    Args:
+        lat (float): latitude of location
+        lon (float): longitude of location
+        alt (float): altitude of location
+        start_time (datetime): datetime object for starting time of the one day period
+        day_repeat_num (int): number of times to repeat the one day period
+        dt_freq (int): time frequency in seconds for solar flux data
+        total_time (int,optional): total time in days for the repeated data. Defaults to 1.
+
+
+    Returns:
+        clearsky_repeatday (pd.DataFrame): DataFrame with repeated clearsky irradiance data
+    """
+    # Create date range for one day at given dt frequency
+    times = pd.date_range(
+        start_time,
+        start_time + datetime.timedelta(days=total_time),
+        freq=str(dt_freq) + "s",
+        tz="UTC",
+    )
+
+    # Create location object, and get solar position and clearsky irradiance data.
+    location = pvlib.location.Location(lat, lon, tz="UTC", altitude=alt)
+    clearsky = location.get_clearsky(times)
+
+    # Repeat solar flux data for specified number of days
+    clearsky_repeatday = pd.concat([clearsky] * day_repeat_num, ignore_index=True)
+    full_year_times = pd.date_range(
+        start_time, periods=len(clearsky_repeatday), freq=str(dt_freq) + "s", tz="UTC"
+    )
+    clearsky_repeatday.index = full_year_times
+
+    return clearsky_repeatday
 
 def main():
     ############################# Define inputs ########################################
-    
+
     cmd_inputs = parse()
     # Regolith thickness
-    regolith_thickness = float(cmd_inputs.regolith_thickness) # Should be 0 for Earth
+    regolith_thickness = float(cmd_inputs.regolith_thickness)  # Should be 0 for Earth
+
     # Tube roof thickness
     tube_roof = float(cmd_inputs.roof_thickness)
 
@@ -368,25 +412,21 @@ def main():
     days = int(cmd_inputs.days)
     # Convert to seconds
     total_time = 24 * 60 * 60 * days
-    if cmd_inputs.Earth:
-        # Max and min diurnal temps/times from UAS data (median from day and night).
-        max_temp = 42.37 + 273.15  # (K)
-        max_temp_time = 14 * 60 * 60  # (seconds since midnight)
-        min_temp = 12.67 + 273.15  # (K)
-        min_temp_time = 2 * 60 * 60  # (seconds since midnight)
-    elif cmd_inputs.Moon:
-        # Max and min diurnal temps/times from Diviner data.
-        max_temp = 356.43  # (K) Williams et al. 2017 over Highland 1
-        max_temp_time = ((29.53 / 2) * 24 * 60 * 60)  # (seconds since midnight) https://svs.gsfc.nasa.gov/12739
-        min_temp = 87.76  # (K) Williams et al. 2017 over Highland 1
-        min_temp_time = 0  # (seconds since midnight)
 
+    # location
+    latitude, longitude = float(cmd_inputs.latitude), float(cmd_inputs.longitude)
+
+    # Altitude
+    altitude = float(cmd_inputs.altitude)
+
+    # Starting datetime
+    start_dt = datetime.datetime.strptime(cmd_inputs.starting_date, "%Y-%m-%d_%H:%M")
 
     # Total length of domain in meters
     L = regolith_thickness + tube_roof
 
     # Number of grid points
-    nx = 75
+    nx = int(cmd_inputs.nx)
 
     #  Space array + grid spacing
     x, dx = np.linspace(0, L, nx, retstep=True)
@@ -395,73 +435,99 @@ def main():
     regolith_bool = find_reg_depth_idx(tube_roof, L, x)
 
     # Bulk rock temperature.
-    T_basalt = (max_temp + min_temp) / 2  # (K)
+    T_basalt = float(cmd_inputs.T_basalt)
 
-    # Set lower boundary of model to either the middle between max and min temperature or as boundary set in args
-    if cmd_inputs.lower_boundary == "T_basalt":
-        lower_boundary = T_basalt
-    else:
-        lower_boundary = float(cmd_inputs.lower_boundary)
-        
     ######################## Compute time & temperature arrays ############################
-    
+
     # Precompute smallest timestep value that satisfies numerical requirements
-    dt = find_best_dt(lower_boundary,dx,min_temp,max_temp,cmd_inputs)
+    dt = find_best_dt(dx, 200, 325, cmd_inputs)
 
     # Create time array based on dt
     nt = np.arange(1, total_time, dt)
     print("dt=" + str(dt))
     print("dx=" + str(dx))
 
-    # Get cosine equation parameters for upper boundary temperature forcing
-    A, k, p, h = calc_cos_eq([max_temp, min_temp], [max_temp_time, min_temp_time])
-    # Create temperature curve. This is what will be referenced to set the upper boundary at every timestep
-    temp_curve = -A * np.cos((np.pi / p) * (nt - h)) + k
-
     # Create temperature array to model on. Make same length as x domain. Set all values equal to basalt temp to start
     T = np.ones_like(x) * T_basalt
 
-    # Upper boundary condition before loop is set by 1st entry of temperature curve
-    T[0] = temp_curve[0]  # (K)
-
+    # Calculate solar heating flux for full time period
+    Q_solar_arr = calculate_solar_heat_flux(latitude,
+                                            longitude, 
+                                            altitude, 
+                                            start_dt, 
+                                            days, 
+                                            dt, 
+                                            total_time=1)
+    
     ############################### Heat flow model computation ##############################
-
+    plt.ion()
     # Set up plots
     fig, ax = plt.subplots(1, 2)
-    fig.tight_layout(pad=1.8)
+    fig.tight_layout(pad=4.5)
     ax[0].set_ylabel("Depth [m]")
     ax[0].set_xlabel("Temperature [K]")
     ax[0].grid(visible=True)
 
-    ax[1].set_xlabel("Time [years]")
-    ax[1].set_ylabel("Temperature [K]")
+    # ax[1].plot(Q_solar_arr.index, Q_solar_arr.ghi.values)
+    ax[1].plot(nt / 60 / 60 / 24, Q_solar_arr.ghi.values[: len(nt)])
+    ax[1].set_xlabel("Time [days]")
+    ax[1].set_ylabel("Solar flux [w/m^2]")
 
+    plt.ion()
 
     images = []
     T_surf = []
+    Q_in = []
+    Q_out = []
     count = 0
     # Loop through time
     for ti, ts in enumerate(tqdm(nt)):
         # Separate counter for outputs
         count += 1
-        
-        # Setup new temperature array for future time. Fill with zeros
-        Tnew = np.zeros_like(T)
-        
+
+        T_old = T.copy()
+
+        # Calculate radiative heat flux at surface of old temperature profile
+        Q_rad = calculate_radiative_heat_flux(T_old[0])
+
+        # Get solar heat flux at current time
+        Q_solar = Q_solar_arr.ghi.values[ti]
+
+        ################ UPPER BOUNDARY #########################
+        # Find conductivity and diffusivity at surface (From old temp) for ghost node calc
+        if cmd_inputs.Earth:
+            conductivity = calc_conductivity_earth(T_old[0])
+            K_ghost = calc_K(T_old[0], vacuum=False)
+        elif cmd_inputs.Moon:
+            conductivity = calc_conductivity_lunar(T_old[0])
+            if regolith_bool[0] == 0:
+                K_ghost = calc_K_regolith(calc_conductivity_lunar(T_old[0]), calc_cp(T_old[0]))
+            else:
+                K_ghost = calc_K(T_old[0], vacuum=True)
+
+        # Calculate ghost node temperature above surface using center finite difference method
+        T_ghost_top = T_old[1] - (((2 * dx) / conductivity) * (Q_rad - Q_solar))
+
+        # Reinforce upper boundary condition using ghost node "above" surface
+        T[0] = T_old[0] + K_ghost * dt * ((T_old[1] - (2 * T_old[0]) + T_ghost_top) / dx**2)
+
+        ################ MAIN COLUMN #########################
         # Loop through space using finite difference explicit discretization of Diffusion Eq.
         for i in range(1, nx - 1):
             # if we're in rock:
             if regolith_bool[i] == 1:
                 # If we're on Earth
                 if cmd_inputs.Earth:
-                    K = calc_K(T[i], vacuum=False)
+                    K = calc_K(T_old[i], vacuum=False)
                 # If we're on the Moon
                 elif cmd_inputs.Moon:
-                    K = calc_K(T[i], vacuum=True)
-                    
+                    K = calc_K(T_old[i], vacuum=True)
+
             # If we're in regolith (will only happen on the moon)
             elif regolith_bool[i] == 0:
-                K = calc_K_regolith(calc_conductivity(T[i]), calc_cp(T[i]))
+                K = calc_K_regolith(
+                    calc_conductivity_lunar(T_old[i]), calc_cp(T_old[i])
+                )
 
             # Double check we're not violating maximum timestep condition
             dtmax = calc_dtmax(dx, K)
@@ -469,24 +535,43 @@ def main():
                 warnings.warn("timestep: " + str(dt) + " is greater than " + str(dtmax))
 
             # forward explicit finite difference approximation (the model!)
-            Tnew[i] = T[i] + K * dt * ((T[i + 1] - (2 * T[i]) + T[i - 1]) / dx**2)
+            T[i] = T_old[i] + K * dt * (
+                (T_old[i + 1] - (2 * T_old[i]) + T_old[i - 1]) / dx**2
+            )
 
-        # Once all temperatures have been calcualted at every location, reinforce boundary conditions
-        Tnew[0] = temp_curve[ti]
-        Tnew[-1] = lower_boundary
+        ################ LOWER BOUNDARY #########################
+        if cmd_inputs.lower_boundary_type == "insulated":
+            # Find diffusivity at base for ghost node calc
+            if cmd_inputs.Earth:
+                K = calc_K(T_old[-1], vacuum=False)
+            elif cmd_inputs.Moon:
+                if regolith_bool[-1] == 0:
+                    K = calc_K_regolith(
+                        calc_conductivity_lunar(T_old[-1]), calc_cp(T_old[-1])
+                    )
+                else:
+                    K = calc_K(T_old[-1], vacuum=True)
 
-        # Set current T equal to Tnew
-        T = Tnew
+            # Calculate ghost node temp above lower boundary
+            T_ghost_bottom = T_old[-2]
+            # Reinforce lower boundary condition using ghost node below lower boundary
+            T[-1] = T_old[-1] + K * dt * (
+                (T_old[-2] - (2 * T_old[-1]) + T_ghost_bottom) / dx**2
+            )
+        elif cmd_inputs.lower_boundary_type == "fixed":
+            T[-1] = float(cmd_inputs.T_lower)
 
-        # Save temperature value 1 grid point below surface.
-        T_surf.append(T[1])
-        
+        # Save temperature value at surface (1 pt beneath ghost node).
+        T_surf.append(T[0])
+        Q_in.append(Q_solar)
+        Q_out.append(Q_rad)
+
         ################ Plotting #######################
         # Output plot every 250 timesteps
         if count == 250 or ti == 0:
 
             # Plot temperature curve
-            ax[0].plot(Tnew, x, "-bo")
+            ax[0].plot(T, x, "-bo")
             ax[0].invert_yaxis()
 
             ax[0].set_xlabel("Temperature [K]")
@@ -494,55 +579,77 @@ def main():
             ax[0].minorticks_on()
 
             ax[0].set_title("Surf Temp=" + str(round(T[1], 3)) + " K")
+            sec_ax = ax[0].secondary_xaxis(
+                "top",
+                functions=(
+                    lambda x: (x - 273.15) * (9 / 5) + 32,
+                    lambda x: (x - 32) * (5 / 9) + 273.15,
+                ),
+            )
+            sec_ax.set_xlabel("Temperature [°F]")
+            ax[0].set_xlim(250, 350)
 
-            # set x limits of plot based on what variable lowest temp is in
-            if lower_boundary < min_temp:
-                ax[0].set_xlim(lower_boundary - 5, max_temp)
-            elif lower_boundary >= min_temp:
-                ax[0].set_xlim(min_temp - 5, max_temp)
-            
             # Plot dotted grey line to show basalt/regolith transition. Will not plot in Earth case
             if cmd_inputs.Moon:
                 ax[0].axhline(
                     y=x[np.where(np.roll(regolith_bool, 1) != regolith_bool)[0][-1]],
                     linestyle=":",
                     color="grey",
-                    alpha=0.5
-                    )
+                    alpha=0.5,
+                )
 
             # Plot solar forcing curve on second plot
-            ax[1].plot(ts / 60 / 60 / 24 / 365, temp_curve[ti], "bo")
+            vlines = ax[1].vlines(nt[ti] / 60 / 60 / 24, 0, 1050, colors="r")
             ax[1].minorticks_on()
 
             # Set limits
-            ax[1].set_xlim(0, total_time / 60 / 60 / 24 / 365)
-            ax[1].set_ylim(min_temp, max_temp)
-            ax[1].set_title("Current Time=" + str(round(ts / 60 / 60 / 24, 3)) + " days")
-
+            # ax[1].set_xlim(0, total_time / 60 / 60 / 24 / 365)
+            ax[1].set_ylim(-5, 1200)
+            ax[1].set_title(
+                "Current Time=" + str(round(ts / 60 / 60 / 24, 3)) + " days"
+            )
+            # plt.show()
+            # Manually draw and flush events
+            fig.canvas.draw()
+            fig.canvas.flush_events()
+            plt.pause(0.001)
             # Reset counter
             count = 0
             # Save current plot image to array
             img_buf = io.BytesIO()
             fig.savefig(img_buf)
             images.append(imageio.imread(img_buf))
-
+            vlines.remove()
         # Reset axis 0. Add back grid
         ax[0].cla()
+
         ax[0].grid(visible=True)
-    
-    # Once timestepping loop is done, Create filename string based off regolith thickness 
-    # and lower temperature boundary
-    fn = "heat_flow_reg-" + str(regolith_thickness) + "m_lower_bound-" + str(lower_boundary)
+
+    # Once timestepping loop is done, write out results
+
+    # Cerate directory based off current time
+    out_dir = 'output/'+datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    os.mkdir(out_dir)
+
+    # Convert cmd args to dictionary, then to dataframe
+    args_dict = vars(cmd_inputs)
+    df_args = pd.DataFrame({key: [value] for key, value in args_dict.items()})
+    # Output as csv
+    df_args.to_csv(out_dir + '/run_parameters.csv')
 
     # Save gif
-    imageio.mimsave(fn + "_K.gif", images)
+    imageio.mimsave(out_dir + "/animation.gif", images)
 
     # Create dictionary of surface temp values and full time array
-    out_dict = {"time": nt, "surf_temp": T_surf}
+    out_dict = {"time": nt, "surf_temp": T_surf, "Q_out": Q_out, "Q_in": Q_in}
     # Convert to Dataframe
     df = pd.DataFrame(out_dict)
     # Output as csv
-    df.to_csv(fn + "_K.csv")
-    
-if __name__ == '__main__':
+    df.to_csv(out_dir + "/surf_temp.csv")
+
+    # Print out surface temp statistics
+    print("Max Surface Temp: " + str(np.max(T_surf)) + " K")
+    print("Min Surface Temp: " + str(np.min(T_surf)) + " K")    
+
+if __name__ == "__main__":
     main()
