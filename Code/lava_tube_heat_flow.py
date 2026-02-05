@@ -55,7 +55,7 @@ import pandas as pd
 from tqdm import tqdm
 import datetime
 import pvlib
-
+import xarray as xr
 
 def parse():
     parser = argparse.ArgumentParser()
@@ -338,6 +338,41 @@ def find_best_dt(del_x, temp_min, temp_max, args):
     best_dt = 5 * np.floor(dt_range_test[best_dt_idx] / 5)
     return best_dt
 
+def calculate_net_flux(ds):
+    """Takes ERA5 reanalysis data, converts net short wave and longwave fluxes from J/m^2 to W/m^2 
+    Then adds together to get total net flux received at surface.
+
+    Args:
+        ds (xarray): ERA5 reanalysis data containing shortwave radiation flux (ssrc) and longwave radiation flux (strc)
+
+    Returns:
+        xarray: Net flux received at surface in W/m^2
+    """    
+    # Time period over which fluxes are accumulated in ERA5 model. 
+    accumulation_time = 1 * 60 * 60 # 1 hour in seconds
+
+    # Divide shortwave (ssrc) and longwave (strc) by accumulation time to get flux in W/m^2, 
+    # then sum to get net flux received by surface
+    return ds.ssrc/accumulation_time + ds.strc/accumulation_time
+
+def get_net_heat_flux_surf(ds, timestep, start_time, lat, lon):
+    """Gets net flux at current timestep and location
+
+    Args:
+        ds (xarray): ERA5 reanalysis data containing previously calculated net flux data
+        timestep (int): current timestep in seconds
+        start_time (datetime): starting time of simulation (UTC)
+        lat (float): latitude of location
+        lon (float): longitude of location
+
+    Returns:
+        float: Net heat flux at the surface (W/m^2) at the given location and timestep
+    """    
+    # Find current time by taking start time input by user and adding the current timestep value
+    time_now = start_time + datetime.timedelta(seconds=timestep)
+    
+    # Index into dataset to get net flux value at current time and location (or closest time/location if exact time/location can't be found)
+    return ds.sel(longitude=lon, latitude=lat, valid_time=time_now,method='nearest').data
 
 def calculate_radiative_heat_flux(T_surf, epsilon=0.72):
     """Calculates radiative heat flux
@@ -357,7 +392,7 @@ def calculate_radiative_heat_flux(T_surf, epsilon=0.72):
 
     return Q_rad
 
-
+# def calc_longwave_flux():
 def calculate_solar_heat_flux(
     lat, lon, alt, start_time, day_repeat_num, dt_freq, total_time=1
 ):
@@ -450,6 +485,9 @@ def main():
     # Create temperature array to model on. Make same length as x domain. Set all values equal to basalt temp to start
     T = np.ones_like(x) * T_basalt
 
+    # Read in ERA5 reanalysis data
+    ERA5_ds = calculate_net_flux(xr.load_dataset("data/ERA5_reanalysis_data_2020.nc"))
+
     # Calculate solar heating flux for full time period
     Q_solar_arr = calculate_solar_heat_flux(latitude,
                                             longitude, 
@@ -488,10 +526,10 @@ def main():
         T_old = T.copy()
 
         # Calculate radiative heat flux at surface of old temperature profile
-        Q_rad = calculate_radiative_heat_flux(T_old[0])
+        # Q_rad = calculate_radiative_heat_flux(T_old[0])
 
         # Get solar heat flux at current time
-        Q_solar = Q_solar_arr.ghi.values[ti]
+        # Q_solar = Q_solar_arr.ghi.values[ti]
 
         ################ UPPER BOUNDARY #########################
         # Find conductivity and diffusivity at surface (From old temp) for ghost node calc
@@ -506,7 +544,7 @@ def main():
                 K_ghost = calc_K(T_old[0], vacuum=True)
 
         # Calculate ghost node temperature above surface using center finite difference method
-        T_ghost_top = T_old[1] - (((2 * dx) / conductivity) * (Q_rad - Q_solar))
+        T_ghost_top = T_old[1] - (((2 * dx) / conductivity) * (get_net_heat_flux_surf(ERA5_ds, ts, start_dt, latitude, longitude)))
 
         # Reinforce upper boundary condition using ghost node "above" surface
         T[0] = T_old[0] + K_ghost * dt * ((T_old[1] - (2 * T_old[0]) + T_ghost_top) / dx**2)
@@ -563,8 +601,8 @@ def main():
 
         # Save temperature value at surface (1 pt beneath ghost node).
         T_surf.append(T[0])
-        Q_in.append(Q_solar)
-        Q_out.append(Q_rad)
+        # Q_in.append(Q_solar)
+        # Q_out.append(Q_rad)
 
         ################ Plotting #######################
         # Output plot every 250 timesteps
