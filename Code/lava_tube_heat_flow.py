@@ -587,7 +587,7 @@ def main():
                 ),
             )
             sec_ax.set_xlabel("Temperature [°F]")
-            ax[0].set_xlim(250, 350)
+            ax[0].set_xlim(200, 350)
 
             # Plot dotted grey line to show basalt/regolith transition. Will not plot in Earth case
             if cmd_inputs.Moon:
@@ -644,6 +644,22 @@ def main():
     out_dict = {"time": nt, "surf_temp": T_surf, "Q_out": Q_out, "Q_in": Q_in}
     # Convert to Dataframe
     df = pd.DataFrame(out_dict)
+
+    plt.figure()
+    plt.plot(nt/60/60/24,np.array(Q_out)-np.array(Q_in),label='net')
+    plt.plot(nt/60/60/24,Q_out,label='outgoing')
+    plt.plot(nt/60/60/24,Q_in,label='ingoing')
+    plt.legend()
+    plt.grid(visible=True)
+    plt.xlabel('Time [days]')
+    plt.ylabel('Heat Flux [W/m²]')
+
+    plt.figure()
+    plt.plot(nt/60/60/24,T_surf)
+    plt.xlabel('Time [days]')
+    plt.ylabel('Surface Temperature [K]')
+    plt.grid(visible=True)
+    # plt.savefig(out_dir + '/heat_flux.png')
     # Output as csv
     df.to_csv(out_dir + "/surf_temp.csv")
 
