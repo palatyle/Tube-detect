@@ -339,7 +339,7 @@ def find_best_dt(del_x, temp_min, temp_max, args):
     return best_dt
 
 
-def calculate_radiative_heat_flux(T_surf, epsilon=0.72):
+def calculate_radiative_heat_flux(T_ambient, T_surf, epsilon=0.72):
     """Calculates radiative heat flux
 
     Args:
@@ -353,10 +353,22 @@ def calculate_radiative_heat_flux(T_surf, epsilon=0.72):
     sigma = 5.67e-8  # Stefan-Boltzmann constant (W m^-2 K^-4)
 
     # Calculate radiative heat flux out of the surface using Stephan-Boltzmann law
-    Q_rad = sigma * epsilon * T_surf**4  # Radiative heat flux at the surface
+    Q_rad = sigma * epsilon * (T_ambient**4 - T_surf**4)  # Radiative heat flux at the surface
 
     return Q_rad
 
+def calculate_convective_heat_flux(T_ambient,T_surf,h):
+    """Calculates convective heat flux above surface
+
+    Args:
+        T_ambient (float): Ambient temperature (K)
+        T_surf (float): Surface temperature (K)
+        h (float): Convective heat transfer coefficient (W m^-2 K^-1) 
+
+    Returns:
+        (float): Convective heat flux (W m^-2)
+    """    
+    return h * (T_ambient - T_surf) 
 
 def calculate_solar_heat_flux(
     lat, lon, alt, start_time, day_repeat_num, dt_freq, total_time=1
@@ -587,7 +599,7 @@ def main():
                 ),
             )
             sec_ax.set_xlabel("Temperature [°F]")
-            ax[0].set_xlim(200, 350)
+            ax[0].set_xlim(180, 350)
 
             # Plot dotted grey line to show basalt/regolith transition. Will not plot in Earth case
             if cmd_inputs.Moon:
