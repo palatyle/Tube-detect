@@ -19,15 +19,15 @@ Options:
   --T_basalt            Set temperature in K of starting column | required
   --days                Number of days to run model for | required
   --starting_date       Give starting date in format YYYY-MM-DD_HH:MM. Timezone is assumed to be UTC | required
-  --latitude            latitude of interest in pvlib calculations. Give in decimal degrees | required 
-  --longitude           longitude of interest in pvlib calculations. Give in decimal degrees | required
-  --altitude            altitude of interest in pvlib calculations. Give in meters | required
+  --repeat              Whether to repeat chunk of time throughout simulation. Options are: 'day' for repeating 1st 24 hours, 'year' for repeating 1st 365 days, or 'none' for no repetition. Default is 'none' | required 
+  --plot_interval       Interval in timesteps (give as integer) to plot data. Lower values will give smoother gifs but will take more time to run. Default is 250 | required
+  --ERA5_input_path     Path to ERA5 reanalysis timeseries data containing downwelling solar flux and 2 meter temperature data. Download at CDS archive: https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels-timeseries?tab=overview" | required
 
 Ex for Earth:
-python lava_tube_heat_flow.py --Earth --roof_thickness 5 --regolith_thickness 0 --nx 50 --lower_boundary_type insulated --T_basalt 300 --days 365 --starting_date 2020-06-02_06:00 --latitude 43.5 --longitude -112.45 --altitude 1631
+python lava_tube_heat_flow.py --Earth --roof_thickness 5 --regolith_thickness 0 --nx 50 --lower_boundary_type insulated --T_basalt 300 --days 365 --starting_date 2020-06-02_06:00 --repeat day --plot_interval 250 --ERA5_input_path data/Tabernacle_ERA5_ts.nc
 
 This will run an earth model for 365 days with a tube roof thickness of 5 meters, no reoglith, a lower boundary type of insulated, 
-a starting basalt temperature of 300 K, a starting date of June 2nd, 2020 at 6:00 UTC, and a location of 43.5 N, 112.45 W, and 1631 m altitude.
+a starting basalt temperature of 300 K, a starting date of June 2nd, 2020 at 6:00 UTC, using ERA5 data from the Tabernacle area. It will also repeat the first day over and over to create a constant timeseries and will plot every 250 timesteps.
 
 Output will be in a folder that is named by the date and time the script was run in the output directory
 Script will generate a .gif and two .csv files:
@@ -40,7 +40,7 @@ matplotlib
 numpy
 pandas
 tqdm
-pvlib
+xarray
 """
 
 import argparse
@@ -48,14 +48,13 @@ import io
 import os
 import warnings
 
-import imageio
+import imageio.v2 as imageio
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import datetime
-import pvlib
-
+import xarray as xr
 
 def parse():
     parser = argparse.ArgumentParser()
@@ -77,7 +76,7 @@ def parse():
                         required=True)
 
     parser.add_argument("--nx", 
-                        help="Set number of grid points in model domain", 
+                        help="Override number of grid points in model domain. Otherwise, model automatically chooses based on domain length and assuming grid spacing of 0.1 m. Note that setting this value manually may lead to numerical instability issues.", 
                         required=False)
 
     parser.add_argument("--lower_boundary_type",
@@ -99,18 +98,22 @@ def parse():
     parser.add_argument("--starting_date",
                         help="Give starting date in format YYYY-MM-DD_HH:MM. Timezone is assumed to be UTC",
                         required=True)
-
-    parser.add_argument("--latitude",
-                        help="latitude of interest in pvlib calculations. Give in decimal degrees",
+    
+    parser.add_argument("--repeat",
+                        help="Whether to repeat chunk of time throughout simulation. Options are: 'day' for repeating 1st 24 hours, 'year' for repeating 1st 365 days, or 'none' for no repetition. Default is 'none'.",
+                        required=True,
+                        default="none")
+    
+    parser.add_argument("--plot_interval",
+                        help = "Interval in timesteps (give as integer) to plot data. Lower values will give smoother gifs but will take more time to run. Default is 250.",
+                        required=True,
+                        default=250)
+    
+    parser.add_argument("--ERA5_input_path",
+                        help="Path to ERA5 reanalysis timeseries data containing downwelling solar flux and 2 meter temperature data. Download at CDS archive: https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels-timeseries?tab=overview",
                         required=True)
+    
 
-    parser.add_argument("--longitude",
-                        help="longitude of interest in pvlib calculations. Give in decimal degrees",
-                        required=True)
-
-    parser.add_argument("--altitude",
-                        help="altitude of interest in pvlib calculations. Give in meters",
-                        required=True)
 
     inputs = parser.parse_args()
 
@@ -336,10 +339,10 @@ def find_best_dt(del_x, temp_min, temp_max, args):
         best_dt_idx = np.where(rock_bool & reg_bool)[0][-1]
 
     best_dt = 5 * np.floor(dt_range_test[best_dt_idx] / 5)
-    return best_dt
+    return best_dt - 1000
 
 
-def calculate_radiative_heat_flux(T_ambient, T_surf, epsilon=0.72):
+def calculate_radiative_heat_flux(T_ambient, T_surf, epsilon=0.95):
     """Calculates radiative heat flux
 
     Args:
@@ -353,7 +356,7 @@ def calculate_radiative_heat_flux(T_ambient, T_surf, epsilon=0.72):
     sigma = 5.67e-8  # Stefan-Boltzmann constant (W m^-2 K^-4)
 
     # Calculate radiative heat flux out of the surface using Stephan-Boltzmann law
-    Q_rad = sigma * epsilon * (T_ambient**4 - T_surf**4)  # Radiative heat flux at the surface
+    Q_rad = sigma * epsilon * (T_surf**4 - T_ambient**4)  # Radiative heat flux at the surface
 
     return Q_rad
 
@@ -368,7 +371,36 @@ def calculate_convective_heat_flux(T_ambient,T_surf,h):
     Returns:
         (float): Convective heat flux (W m^-2)
     """    
-    return h * (T_ambient - T_surf) 
+    return h * (T_surf - T_ambient) 
+
+def get_ERA5_at_ts(ds, timestep, start_time,repeat):
+    """Gets net flux at current timestep and location
+
+    Args:
+        ds (xarray): ERA5 reanalysis data containing previously calculated net flux data
+        timestep (int): current timestep in seconds
+        start_time (datetime): starting time of simulation (UTC)
+        lat (float): latitude of location
+        lon (float): longitude of location
+
+    Returns:
+        float: Net heat flux at the surface (W/m^2) at the given location and timestep
+    """ 
+    if repeat == "day":
+        # If repeating by day, find the time within the first day by taking the modulus of the timestep with the number of seconds in a day
+        timestep = timestep % (24*60*60)
+    elif repeat == "year":
+        # If repeating by year, find the time within the first year by taking the modulus of the timestep with the number of seconds in a year
+        timestep = timestep % (365*24*60*60)
+    else:
+        # If not repeating, use the full timestep value to find the current time
+        pass
+
+    # Find current time by taking start time input by user and adding the current timestep value
+    time_now = start_time + datetime.timedelta(seconds=timestep)
+    
+    # Index into dataset to get net flux value at current time (or closest time if exact time can't be found)
+    return ds.sel(valid_time=time_now,method='nearest')
 
 def calculate_solar_heat_flux(
     lat, lon, alt, start_time, day_repeat_num, dt_freq, total_time=1
@@ -389,7 +421,7 @@ def calculate_solar_heat_flux(
     Returns:
         clearsky_repeatday (pd.DataFrame): DataFrame with repeated clearsky irradiance data
     """
-    # Create date range for one day at given dt frequency
+    # Create date range for total time at given dt frequency
     times = pd.date_range(
         start_time,
         start_time + datetime.timedelta(days=total_time),
@@ -425,12 +457,6 @@ def main():
     # Convert to seconds
     total_time = 24 * 60 * 60 * days
 
-    # location
-    latitude, longitude = float(cmd_inputs.latitude), float(cmd_inputs.longitude)
-
-    # Altitude
-    altitude = float(cmd_inputs.altitude)
-
     # Starting datetime
     start_dt = datetime.datetime.strptime(cmd_inputs.starting_date, "%Y-%m-%d_%H:%M")
 
@@ -438,10 +464,16 @@ def main():
     L = regolith_thickness + tube_roof
 
     # Number of grid points
-    nx = int(cmd_inputs.nx)
+    
 
     #  Space array + grid spacing
-    x, dx = np.linspace(0, L, nx, retstep=True)
+    if cmd_inputs.nx is None:
+        dx= 0.1
+        x = np.arange(0,L+dx,dx)
+        nx = len(x)
+    else:
+        nx = int(cmd_inputs.nx)
+        x, dx = np.linspace(0, L, nx, retstep=True)
 
     # Find which parts of domain are regolith
     regolith_bool = find_reg_depth_idx(tube_roof, L, x)
@@ -452,7 +484,8 @@ def main():
     ######################## Compute time & temperature arrays ############################
 
     # Precompute smallest timestep value that satisfies numerical requirements
-    dt = find_best_dt(dx, 200, 325, cmd_inputs)
+    dt = find_best_dt(dx, 225, 350, cmd_inputs)
+    # dt=3600.0
 
     # Create time array based on dt
     nt = np.arange(1, total_time, dt)
@@ -461,16 +494,14 @@ def main():
 
     # Create temperature array to model on. Make same length as x domain. Set all values equal to basalt temp to start
     T = np.ones_like(x) * T_basalt
-
-    # Calculate solar heating flux for full time period
-    Q_solar_arr = calculate_solar_heat_flux(latitude,
-                                            longitude, 
-                                            altitude, 
-                                            start_dt, 
-                                            days, 
-                                            dt, 
-                                            total_time=1)
     
+    # Read in ERA5 reanalysis timeseries data
+    ERA5_ds = xr.open_dataset(cmd_inputs.ERA5_input_path)
+
+    # Check if simulation time is too long for ERA5 dataset
+    if start_dt + datetime.timedelta(days=days) > pd.to_datetime(ERA5_ds.valid_time.max().data).to_pydatetime():
+        raise ValueError(f"The end date of the simulation ({start_dt + datetime.timedelta(days=days)}) is beyond the range of the ERA5 dataset ({pd.to_datetime(ERA5_ds.valid_time.max().data).to_pydatetime()}). Please choose a shorter simulation time or provide an ERA5 dataset that covers the desired time range.")
+
     ############################### Heat flow model computation ##############################
     plt.ion()
     # Set up plots
@@ -481,10 +512,18 @@ def main():
     ax[0].grid(visible=True)
 
     # ax[1].plot(Q_solar_arr.index, Q_solar_arr.ghi.values)
-    ax[1].plot(nt / 60 / 60 / 24, Q_solar_arr.ghi.values[: len(nt)])
-    ax[1].set_xlabel("Time [days]")
-    ax[1].set_ylabel("Solar flux [w/m^2]")
+    # Plot solar flux curve for context
+    ssrd = ERA5_ds.ssrd/3600 # Divide by 3600 to convert from J/m^2 to W/m^2
 
+    if cmd_inputs.repeat == "day":
+        ssrd.sel(valid_time=slice(start_dt,start_dt+datetime.timedelta(days=1))).plot(ax=ax[1])
+    elif cmd_inputs.repeat == "year":
+        ssrd.sel(valid_time=slice(start_dt, start_dt + datetime.timedelta(days=365))).plot(ax=ax[1])
+    else:
+        ssrd.sel(valid_time=slice(start_dt,start_dt+datetime.timedelta(days=days))).plot(ax=ax[1])
+    # ax[1].set_xlabel("Time [days]")
+    ax[1].set_ylabel("Solar flux [w/m^2]")
+    ax[1].tick_params(axis='x',rotation=45)
     plt.ion()
 
     images = []
@@ -498,12 +537,15 @@ def main():
         count += 1
 
         T_old = T.copy()
-
+    
+        # Get closest ERA5 data point to current timestep.
+        ERA5_now = get_ERA5_at_ts(ERA5_ds, ts, start_dt,cmd_inputs.repeat)
         # Calculate radiative heat flux at surface of old temperature profile
-        Q_rad = calculate_radiative_heat_flux(T_old[0])
-
-        # Get solar heat flux at current time
-        Q_solar = Q_solar_arr.ghi.values[ti]
+        Q_rad = calculate_radiative_heat_flux(ERA5_now.t2m.data, T_old[0])
+        # Calculate convective heat flux assuming free convection only (no wind)
+        Q_conv = calculate_convective_heat_flux(ERA5_now.t2m.data, T_old[0], h=25)
+        # Solar flux is downwelling shortwave radiation at surface from ERA5 dataset. Convert to W/m^2 from integrated J/m^2 by dividing by number of seconds in an hour
+        Q_solar = ERA5_now.ssrd.data/3600
 
         ################ UPPER BOUNDARY #########################
         # Find conductivity and diffusivity at surface (From old temp) for ghost node calc
@@ -518,7 +560,7 @@ def main():
                 K_ghost = calc_K(T_old[0], vacuum=True)
 
         # Calculate ghost node temperature above surface using center finite difference method
-        T_ghost_top = T_old[1] - (((2 * dx) / conductivity) * (Q_rad - Q_solar))
+        T_ghost_top = T_old[1] - (((2 * dx) / conductivity) * (Q_rad + Q_conv - Q_solar))
 
         # Reinforce upper boundary condition using ghost node "above" surface
         T[0] = T_old[0] + K_ghost * dt * ((T_old[1] - (2 * T_old[0]) + T_ghost_top) / dx**2)
@@ -579,8 +621,8 @@ def main():
         Q_out.append(Q_rad)
 
         ################ Plotting #######################
-        # Output plot every 250 timesteps
-        if count == 250 or ti == 0:
+        # Output plot every plot_interval timesteps
+        if count == int(cmd_inputs.plot_interval) or ti == 0:
 
             # Plot temperature curve
             ax[0].plot(T, x, "-bo")
@@ -611,14 +653,14 @@ def main():
                 )
 
             # Plot solar forcing curve on second plot
-            vlines = ax[1].vlines(nt[ti] / 60 / 60 / 24, 0, 1050, colors="r")
-            ax[1].minorticks_on()
+            vlines = ax[1].vlines(ERA5_now.valid_time, 0, 1050, colors="r")
+            # ax[1].minorticks_on()
 
             # Set limits
             # ax[1].set_xlim(0, total_time / 60 / 60 / 24 / 365)
             ax[1].set_ylim(-5, 1200)
             ax[1].set_title(
-                "Current Time=" + str(round(ts / 60 / 60 / 24, 3)) + " days"
+                "Time Elapsed=" + str(round(ts / 60 / 60 / 24, 3)) + " days"
             )
             # plt.show()
             # Manually draw and flush events
@@ -658,7 +700,7 @@ def main():
     df = pd.DataFrame(out_dict)
 
     plt.figure()
-    plt.plot(nt/60/60/24,np.array(Q_out)-np.array(Q_in),label='net')
+    plt.plot(nt/60/60/24,np.array(Q_in)-np.array(Q_out),label='net')
     plt.plot(nt/60/60/24,Q_out,label='outgoing')
     plt.plot(nt/60/60/24,Q_in,label='ingoing')
     plt.legend()
